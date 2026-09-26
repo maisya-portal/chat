@@ -8,6 +8,7 @@
 
 import { MockSpreadsheetBackend } from './mockBackend';
 import { ApiResponse } from '../types/api';
+import { Room } from '../types/room';
 
 const CUSTOM_GAS_URL_KEY = 'maisya_custom_gas_url';
 
@@ -70,6 +71,12 @@ export class GasClient {
         return MockSpreadsheetBackend.getRooms(p.userId);
       case 'createRoom':
         return MockSpreadsheetBackend.createRoom(p.namaRoom, p.deskripsi, p.kodeRoom, p.membutuhkanKode, p.fotoUrl, p.userId);
+      case 'deleteRoom':
+        return MockSpreadsheetBackend.deleteRoom(p.roomId, p.userId);
+      case 'updateRoom':
+        return MockSpreadsheetBackend.updateRoom(p.roomId, p.data, p.userId);
+      case 'toggleRoomLock':
+        return MockSpreadsheetBackend.toggleRoomLock(p.roomId, p.userId, p.newKode);
       case 'joinRoom':
         return MockSpreadsheetBackend.joinRoom(p.roomId, p.userId, p.kodeRoom);
       case 'leaveRoom':
@@ -143,6 +150,18 @@ export class GasClient {
 
   static async createRoom(data: { namaRoom: string; deskripsi?: string; kodeRoom?: string; membutuhkanKode?: boolean; fotoUrl?: string; userId: string; token?: string }) {
     return this.request('createRoom', data);
+  }
+
+  static async deleteRoom(roomId: string, userId: string, token?: string) {
+    return this.request('deleteRoom', { roomId, userId, token });
+  }
+
+  static async updateRoom(roomId: string, data: Partial<Room>, userId: string, token?: string) {
+    return this.request('updateRoom', { roomId, data, userId, token });
+  }
+
+  static async toggleRoomLock(roomId: string, userId: string, newKode?: string, token?: string) {
+    return this.request('toggleRoomLock', { roomId, userId, newKode, token });
   }
 
   static async joinRoom(roomId: string, userId: string, kodeRoom?: string, token?: string) {

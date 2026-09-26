@@ -408,6 +408,92 @@ export class MockSpreadsheetBackend {
     return { success: true, room: newRoom };
   }
 
+  static deleteRoom(roomId: string, currentUserId: string) {
+    let rooms = getStore<Room[]>('tb_rooms', INITIAL_ROOMS);
+    const targetRoom = rooms.find(r => r.id_room === roomId);
+    if (!targetRoom) {
+      return { success: false, error: 'Room tidak ditemukan' };
+    }
+
+    // Hapus room dari tb_rooms
+    rooms = rooms.filter(r => r.id_room !== roomId);
+    setStore('tb_rooms', rooms);
+
+    // Hapus anggota room dari tb_room_members
+    let members = getStore<RoomMember[]>('tb_room_members', INITIAL_MEMBERS);
+    members = members.filter(m => m.id_room !== roomId);
+    setStore('tb_room_members', members);
+
+    // Hapus pesan room dari tb_messages
+    let messages = getStore<Message[]>('tb_messages', INITIAL_MESSAGES);
+    messages = messages.filter(m => m.id_room !== roomId);
+    setStore('tb_messages', messages);
+
+    this.logActivity(currentUserId, `DELETE_ROOM: ${targetRoom.nama_room}`, roomId);
+    return { success: true, message: `Room "${targetRoom.nama_room}" berhasil dihapus.` };
+  }
+
+  static updateRoom(roomId: string, data: Partial<Room>, currentUserId: string) {
+    const rooms = getStore<Room[]>('tb_rooms', INITIAL_ROOMS);
+    const idx = rooms.findIndex(r => r.id_room === roomId);
+    if (idx === -1) {
+      return { success: false, error: 'Room tidak ditemukan' };
+    }
+
+    const current = rooms[idx];
+    const updated: Room = {
+      ...current,
+      nama_room: data.nama_room !== undefined ? data.nama_room.trim() : current.nama_room,
+      deskripsi: data.deskripsi !== undefined ? data.deskripsi.trim() : current.deskripsi,
+      membutuhkan_kode: data.membutuhkan_kode !== undefined ? data.membutuhkan_kode : current.membutuhkan_kode,
+      kode_room: data.kode_room !== undefined ? data.kode_room.trim().toUpperCase() : current.kode_room,
+      foto_url: data.foto_url !== undefined && data.foto_url.trim() !== '' ? data.foto_url.trim() : current.foto_url,
+      updated_at: new Date().toISOString()
+    };
+
+    rooms[idx] = updated;
+    setStore('tb_rooms', rooms);
+
+    this.logActivity(currentUserId, `UPDATE_ROOM: ${updated.nama_room}`, roomId);
+    return { success: true, room: updated, message: `Room "${updated.nama_room}" berhasil diperbarui.` };
+  }
+
+  static toggleRoomLock(roomId: string, currentUserId: string, newKode?: string) {
+    const rooms = getStore<Room[]>('tb_rooms', INITIAL_ROOMS);
+    const idx = rooms.findIndex(r => r.id_room === roomId);
+    if (idx === -1) {
+      return { success: false, error: 'Room tidak ditemukan' };
+    }
+
+    const current = rooms[idx];
+    const willLock = !current.membutuhkan_kode;
+    let kode = current.kode_room || '';
+
+    if (willLock) {
+      kode = newKode && newKode.trim() !== '' ? newKode.trim().toUpperCase() : (current.kode_room || 'MAISYA' + Math.floor(1000 + Math.random() * 9000));
+    }
+
+    rooms[idx] = {
+      ...current,
+      membutuhkan_kode: willLock,
+      kode_room: kode,
+      updated_at: new Date().toISOString()
+    };
+    setStore('tb_rooms', rooms);
+
+    const actionText = willLock ? `LOCK_ROOM (Kode: ${kode})` : 'UNLOCK_ROOM (Publik)';
+    this.logActivity(currentUserId, `${actionText}: ${current.nama_room}`, roomId);
+
+    return {
+      success: true,
+      membutuhkan_kode: willLock,
+      kode_room: kode,
+      message: willLock 
+        ? `Room "${current.nama_room}" berhasil dikunci dengan kode PIN: ${kode}`
+        : `Kunci room "${current.nama_room}" berhasil dibuka (Room menjadi Publik)!`
+    };
+  }
+
   static getMessages(roomId: string) {
     const messages = getStore<Message[]>('tb_messages', INITIAL_MESSAGES);
     const roomMsgs = messages.filter(m => m.id_room === roomId);

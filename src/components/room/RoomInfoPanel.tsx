@@ -11,7 +11,8 @@ import {
   UserMinus, 
   LogOut, 
   Calendar,
-  KeyRound
+  KeyRound,
+  Trash2
 } from 'lucide-react';
 import { formatRelativeDate } from '../../utils/dateUtils';
 
@@ -21,8 +22,8 @@ interface RoomInfoPanelProps {
 }
 
 export const RoomInfoPanel: React.FC<RoomInfoPanelProps> = ({ isOpen, onClose }) => {
-  const { activeRoom, members, removeMember, leaveRoom } = useChat();
-  const { user, can } = useAuth();
+  const { activeRoom, members, removeMember, leaveRoom, deleteRoom } = useChat();
+  const { user, can, isAdmin } = useAuth();
 
   if (!isOpen || !activeRoom) return null;
 
@@ -37,6 +38,16 @@ export const RoomInfoPanel: React.FC<RoomInfoPanelProps> = ({ isOpen, onClose })
   const handleLeave = async () => {
     if (confirm(`Apakah Anda yakin ingin keluar dari ${activeRoom.nama_room}?`)) {
       await leaveRoom(activeRoom.id_room);
+      onClose();
+    }
+  };
+
+  const canDeleteRoom = isAdmin || can('delete_room');
+
+  const handleDeleteRoom = async () => {
+    if (!activeRoom) return;
+    if (confirm(`Hapus permanen room "${activeRoom.nama_room}"?\n\nSemua riwayat chat dan anggota di dalam room ini akan ikut terhapus dari sistem.`)) {
+      await deleteRoom(activeRoom.id_room);
       onClose();
     }
   };
@@ -144,13 +155,24 @@ export const RoomInfoPanel: React.FC<RoomInfoPanelProps> = ({ isOpen, onClose })
           </div>
         </div>
 
-        {/* Leave Room Action */}
-        <div className="pt-4 border-t border-slate-800">
+        {/* Room Actions */}
+        <div className="pt-4 border-t border-slate-800 space-y-2">
+          {canDeleteRoom && (
+            <button
+              onClick={handleDeleteRoom}
+              className="w-full py-2.5 px-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20 text-xs font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm"
+              title="Hapus room ini dan seluruh pesannya secara permanen"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Hapus Room Ini (Admin)</span>
+            </button>
+          )}
+
           <button
             onClick={handleLeave}
-            className="w-full py-2.5 px-4 rounded-xl border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+            className="w-full py-2.5 px-4 rounded-xl border border-slate-700/80 text-slate-300 hover:bg-slate-800 text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-4 h-4 text-slate-400" />
             <span>Keluar dari Room Ini</span>
           </button>
         </div>

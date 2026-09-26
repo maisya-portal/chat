@@ -29,8 +29,16 @@ import {
   Phone,
   Check,
   X,
-  AlertCircle
+  AlertCircle,
+  Trash2,
+  Lock,
+  Unlock,
+  Edit3,
+  Plus,
+  KeyRound,
+  Copy
 } from 'lucide-react';
+import { useChat } from '../../context/ChatContext';
 
 interface AdminDashboardModalProps {
   isOpen: boolean;
@@ -39,6 +47,7 @@ interface AdminDashboardModalProps {
 
 export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
+  const { deleteRoom, updateRoom, toggleRoomLock, createRoom, refreshRooms } = useChat();
 
   const [activeTab, setActiveTab] = useState<'stats' | 'approvals' | 'users' | 'rooms' | 'roles' | 'logs' | 'conn'>('stats');
 
@@ -60,6 +69,17 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
   const [newUsername, setNewUsername] = useState('');
   const [newRole, setNewRole] = useState('ROLE_PESERTA');
   const [newFoto, setNewFoto] = useState('');
+
+  // Room Management State
+  const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [roomNama, setRoomNama] = useState('');
+  const [roomDeskripsi, setRoomDeskripsi] = useState('');
+  const [roomMembutuhkanKode, setRoomMembutuhkanKode] = useState(false);
+  const [roomKode, setRoomKode] = useState('');
+  const [roomFoto, setRoomFoto] = useState('');
+  const [roomActionLoading, setRoomActionLoading] = useState(false);
+  const [roomFeedback, setRoomFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Connection config state
   const [customGasUrl, setCustomGasUrl] = useState(GasClient.getBaseUrl());
@@ -140,6 +160,109 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
       setNewUsername('');
       setNewFoto('');
       loadData();
+    }
+  };
+
+  const handleDeleteRoom = async (roomId: string, namaRoom: string) => {
+    if (!window.confirm(`Hapus permanen room "${namaRoom}"?\n\nSemua riwayat chat dan anggota di dalam room ini akan ikut terhapus dari database.`)) {
+      return;
+    }
+    setRoomActionLoading(true);
+    setRoomFeedback(null);
+    const res = await deleteRoom(roomId);
+    setRoomActionLoading(false);
+    if (res.success) {
+      setRoomFeedback({ type: 'success', message: `Room "${namaRoom}" berhasil dihapus!` });
+      await loadData();
+      await refreshRooms();
+    } else {
+      setRoomFeedback({ type: 'error', message: res.error || 'Gagal menghapus room' });
+    }
+  };
+
+  const handleToggleLock = async (room: Room) => {
+    let newKode: string | undefined = undefined;
+    if (!room.membutuhkan_kode) {
+      const input = window.prompt(`Masukkan kode PIN baru untuk mengunci room "${room.nama_room}":`, room.kode_room || 'MAISYA26');
+      if (input === null) return;
+      newKode = input.trim();
+    }
+    setRoomActionLoading(true);
+    setRoomFeedback(null);
+    const res = await toggleRoomLock(room.id_room, newKode);
+    setRoomActionLoading(false);
+    if (res.success) {
+      setRoomFeedback({ type: 'success', message: res.message || 'Status kunci room berhasil diperbarui' });
+      await loadData();
+      await refreshRooms();
+    } else {
+      setRoomFeedback({ type: 'error', message: res.error || 'Gagal mengubah status kunci room' });
+    }
+  };
+
+  const startEditRoom = (room: Room) => {
+    setEditingRoom(room);
+    setRoomNama(room.nama_room);
+    setRoomDeskripsi(room.deskripsi || '');
+    setRoomMembutuhkanKode(room.membutuhkan_kode);
+    setRoomKode(room.kode_room || '');
+    setRoomFoto(room.foto_url || '');
+    setIsAddRoomOpen(true);
+    setRoomFeedback(null);
+  };
+
+  const cancelRoomForm = () => {
+    setEditingRoom(null);
+    setIsAddRoomOpen(false);
+    setRoomNama('');
+    setRoomDeskripsi('');
+    setRoomMembutuhkanKode(false);
+    setRoomKode('');
+    setRoomFoto('');
+    setRoomFeedback(null);
+  };
+
+  const handleSaveRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!roomNama.trim()) return;
+
+    setRoomActionLoading(true);
+    setRoomFeedback(null);
+
+    if (editingRoom) {
+      const res = await updateRoom(editingRoom.id_room, {
+        nama_room: roomNama.trim(),
+        deskripsi: roomDeskripsi.trim(),
+        membutuhkan_kode: roomMembutuhkanKode,
+        kode_room: roomMembutuhkanKode ? roomKode.trim().toUpperCase() : '',
+        foto_url: roomFoto.trim() || undefined
+      });
+      setRoomActionLoading(false);
+      if (res.success) {
+        setRoomFeedback({ type: 'success', message: res.message || 'Room berhasil diperbarui' });
+        cancelRoomForm();
+        await loadData();
+        await refreshRooms();
+      } else {
+        setRoomFeedback({ type: 'error', message: res.error || 'Gagal memperbarui room' });
+      }
+    } else {
+      const res = await createRoom({
+        namaRoom: roomNama.trim(),
+        deskripsi: roomDeskripsi.trim(),
+        membutuhkanKode: roomMembutuhkanKode,
+        kodeRoom: roomMembutuhkanKode ? roomKode.trim().toUpperCase() : '',
+        fotoUrl: roomFoto.trim() || undefined
+      });
+      setRoomActionLoading(false);
+      if (res.success) {
+        setRoomFeedback({ type: 'success', message: 'Room baru berhasil dibuat!' });
+        cancelRoomForm();
+        await loadData();
+        await refreshRooms();
+      } else {
+        setRoomFeedback({ type: 'error', message: res.error || 'Gagal membuat room' });
+      }
     }
   };
 
@@ -565,39 +688,287 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
 
           {/* TAB 3: MANAJEMEN ROOM */}
           {activeTab === 'rooms' && (
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Daftar Room Percakapan ({roomList.length})
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-96 overflow-y-auto custom-scrollbar">
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-700/50">
+                <div>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-emerald-400" />
+                    <span>Daftar Room Percakapan ({roomList.length})</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Kelola status proteksi kode PIN, ubah informasi room, atau hapus room permanen.
+                  </p>
+                </div>
+                {!isAddRoomOpen && (
+                  <button
+                    onClick={() => {
+                      cancelRoomForm();
+                      setIsAddRoomOpen(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-emerald-950 transition-all self-start sm:self-auto"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Buat Room Baru</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Feedback Alert */}
+              {roomFeedback && (
+                <div
+                  className={`p-3 rounded-xl border flex items-center justify-between text-xs animate-in fade-in duration-200 ${
+                    roomFeedback.type === 'success'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                      : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {roomFeedback.type === 'success' ? (
+                      <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    )}
+                    <span>{roomFeedback.message}</span>
+                  </div>
+                  <button
+                    onClick={() => setRoomFeedback(null)}
+                    className="text-slate-400 hover:text-white p-1 rounded transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Form Tambah / Edit Room */}
+              {isAddRoomOpen && (
+                <div className="p-4 rounded-2xl bg-slate-900/90 border border-emerald-500/30 shadow-xl space-y-3.5 animate-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                    <h5 className="text-xs font-bold text-white flex items-center gap-2">
+                      {editingRoom ? <Edit3 className="w-4 h-4 text-amber-400" /> : <Plus className="w-4 h-4 text-emerald-400" />}
+                      <span>{editingRoom ? `Edit Room: ${editingRoom.nama_room}` : 'Buat Room Percakapan Baru'}</span>
+                    </h5>
+                    <button
+                      onClick={cancelRoomForm}
+                      className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveRoom} className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                          Nama Room *
+                        </label>
+                        <input
+                          type="text"
+                          value={roomNama}
+                          onChange={(e) => setRoomNama(e.target.value)}
+                          placeholder="Contoh: Halaqah Tahfidz & Quran"
+                          required
+                          className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                          URL Foto / Thumbnail (Opsional)
+                        </label>
+                        <input
+                          type="url"
+                          value={roomFoto}
+                          onChange={(e) => setRoomFoto(e.target.value)}
+                          placeholder="https://images.unsplash.com/..."
+                          className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Deskripsi Room
+                      </label>
+                      <textarea
+                        value={roomDeskripsi}
+                        onChange={(e) => setRoomDeskripsi(e.target.value)}
+                        placeholder="Uraian peruntukan ruang percakapan..."
+                        rows={2}
+                        className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500 custom-scrollbar resize-none"
+                      />
+                    </div>
+
+                    {/* Pengaturan Kunci / Kode Room */}
+                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-4 h-4 text-amber-400" />
+                          <div>
+                            <span className="text-xs font-semibold text-white block">
+                              Proteksi Kunci Kode PIN (LOCK)
+                            </span>
+                            <span className="text-[10px] text-slate-400 block">
+                              Jika aktif, santri atau peserta wajib memasukkan PIN untuk masuk ke room ini.
+                            </span>
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          id="admin_room_membutuhkan_kode"
+                          checked={roomMembutuhkanKode}
+                          onChange={(e) => setRoomMembutuhkanKode(e.target.checked)}
+                          className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-900 border-slate-700 bg-slate-800 cursor-pointer"
+                        />
+                      </div>
+
+                      {roomMembutuhkanKode && (
+                        <div className="pt-2 border-t border-slate-800/80">
+                          <label className="block text-[11px] font-semibold text-amber-400 mb-1">
+                            Kode PIN / Passcode Room *
+                          </label>
+                          <input
+                            type="text"
+                            value={roomKode}
+                            onChange={(e) => setRoomKode(e.target.value.toUpperCase())}
+                            placeholder="Contoh: TAHFIDZ26 atau KODE123"
+                            required={roomMembutuhkanKode}
+                            className="w-full px-3 py-2 bg-slate-900 border border-amber-500/40 rounded-xl text-amber-300 font-mono tracking-wider text-xs focus:outline-none focus:border-amber-400"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={cancelRoomForm}
+                        className="px-3 py-1.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 text-xs font-semibold transition-colors"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={roomActionLoading}
+                        className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-emerald-950 transition-colors disabled:opacity-50"
+                      >
+                        {roomActionLoading ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5" />
+                        )}
+                        <span>{editingRoom ? 'Simpan Perubahan' : 'Buat Room'}</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* Grid Daftar Room */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[460px] overflow-y-auto custom-scrollbar pr-1">
                 {roomList.map((r) => (
                   <div
                     key={r.id_room}
-                    className="p-3.5 rounded-xl bg-slate-800/40 border border-slate-700/50 flex items-start gap-3"
+                    className="p-3.5 rounded-2xl bg-slate-800/40 border border-slate-700/60 hover:border-slate-600/80 transition-all flex flex-col justify-between"
                   >
-                    <img
-                      src={r.foto_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=150'}
-                      alt={r.nama_room}
-                      className="w-12 h-12 rounded-xl object-cover border border-slate-700"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <h5 className="text-xs font-bold text-white truncate">{r.nama_room}</h5>
-                        {r.membutuhkan_kode && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono">
-                            LOCK
-                          </span>
-                        )}
+                    <div>
+                      <div className="flex items-start gap-3">
+                        <img
+                          src={r.foto_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=150'}
+                          alt={r.nama_room}
+                          className="w-12 h-12 rounded-xl object-cover border border-slate-700 shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                            <h5 className="text-xs font-bold text-white truncate" title={r.nama_room}>
+                              {r.nama_room}
+                            </h5>
+                            {r.membutuhkan_kode ? (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono flex items-center gap-1">
+                                <Lock className="w-2.5 h-2.5" />
+                                <span>LOCK</span>
+                              </span>
+                            ) : (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-medium flex items-center gap-1">
+                                <Unlock className="w-2.5 h-2.5" />
+                                <span>PUBLIK</span>
+                              </span>
+                            )}
+                          </div>
+
+                          {r.membutuhkan_kode && r.kode_room && (
+                            <div className="mb-1">
+                              <span className="text-[10px] text-amber-400 font-mono bg-amber-500/10 px-1.5 py-0.5 rounded">
+                                PIN: <strong>{r.kode_room}</strong>
+                              </span>
+                            </div>
+                          )}
+
+                          <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+                            {r.deskripsi || 'Tidak ada deskripsi'}
+                          </p>
+
+                          <div className="mt-1.5 text-[10px] text-slate-500 font-mono">
+                            ID: {r.id_room}
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
-                        {r.deskripsi}
-                      </p>
-                      <div className="mt-2 text-[10px] text-slate-500">
-                        <span>ID: {r.id_room}</span>
+                    </div>
+
+                    {/* Baris Tombol Aksi Admin */}
+                    <div className="mt-3 pt-2.5 border-t border-slate-700/50 flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5">
+                        {/* Toggle Lock / Unlock */}
+                        <button
+                          onClick={() => handleToggleLock(r)}
+                          disabled={roomActionLoading}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition-colors ${
+                            r.membutuhkan_kode
+                              ? 'bg-amber-500/10 text-amber-300 hover:bg-emerald-500/20 hover:text-emerald-300 border border-amber-500/30'
+                              : 'bg-slate-700/50 text-slate-300 hover:bg-amber-500/20 hover:text-amber-300 border border-slate-600/40'
+                          }`}
+                          title={r.membutuhkan_kode ? 'Klik untuk membuka kunci (menjadikan publik)' : 'Klik untuk mengunci room dengan kode PIN'}
+                        >
+                          {r.membutuhkan_kode ? <Unlock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                          <span>{r.membutuhkan_kode ? 'Buka Kunci' : 'Kunci PIN'}</span>
+                        </button>
+
+                        {/* Edit Room */}
+                        <button
+                          onClick={() => startEditRoom(r)}
+                          className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-slate-700/50 text-slate-300 hover:bg-sky-500/20 hover:text-sky-300 border border-slate-600/40 flex items-center gap-1 transition-colors"
+                          title="Ubah nama, deskripsi, atau foto room"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
                       </div>
+
+                      {/* Hapus Room Permanen */}
+                      <button
+                        onClick={() => handleDeleteRoom(r.id_room, r.nama_room)}
+                        disabled={roomActionLoading}
+                        className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 border border-rose-500/30 flex items-center gap-1 transition-colors"
+                        title="Hapus room ini secara permanen dari sistem"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Hapus</span>
+                      </button>
                     </div>
                   </div>
                 ))}
+
+                {roomList.length === 0 && (
+                  <div className="col-span-full p-8 text-center bg-slate-800/20 border border-dashed border-slate-700 rounded-2xl">
+                    <MessageSquare className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                    <p className="text-xs text-slate-400">Belum ada room percakapan yang terdaftar.</p>
+                    <button
+                      onClick={() => setIsAddRoomOpen(true)}
+                      className="mt-3 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Buat Room Pertama</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}

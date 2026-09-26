@@ -27,6 +27,9 @@ interface ChatContextType {
   leaveRoom: (roomId: string) => Promise<void>;
   removeMember: (roomId: string, targetUserId: string) => Promise<boolean>;
   createRoom: (data: { namaRoom: string; deskripsi?: string; kodeRoom?: string; membutuhkanKode?: boolean; fotoUrl?: string }) => Promise<{ success: boolean; room?: Room; error?: string }>;
+  deleteRoom: (roomId: string) => Promise<{ success: boolean; error?: string; message?: string }>;
+  updateRoom: (roomId: string, data: Partial<Room>) => Promise<{ success: boolean; error?: string; message?: string }>;
+  toggleRoomLock: (roomId: string, newKode?: string) => Promise<{ success: boolean; error?: string; message?: string }>;
   toast: { message: string; type: 'success' | 'error' | 'info' } | null;
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
@@ -414,6 +417,71 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Delete Room
+  const deleteRoom = async (roomId: string) => {
+    if (!user) return { success: false, error: 'Belum login' };
+    try {
+      const res = await GasClient.deleteRoom(roomId, user.id_user, token || undefined);
+      if (res.success) {
+        if (activeRoom?.id_room === roomId) {
+          setActiveRoom(null);
+          setMessages([]);
+          setMembers([]);
+        }
+        await refreshRooms();
+        showToast(res.message || 'Room berhasil dihapus', 'success');
+        return { success: true, message: res.message };
+      } else {
+        showToast(res.error || 'Gagal menghapus room', 'error');
+        return { success: false, error: res.error };
+      }
+    } catch (err: any) {
+      showToast('Gagal menghapus room', 'error');
+      return { success: false, error: err.message };
+    }
+  };
+
+  // Update Room
+  const updateRoom = async (roomId: string, data: Partial<Room>) => {
+    if (!user) return { success: false, error: 'Belum login' };
+    try {
+      const res = await GasClient.updateRoom(roomId, data, user.id_user, token || undefined);
+      if (res.success) {
+        await refreshRooms();
+        if (activeRoom?.id_room === roomId && (res as any).room) {
+          setActiveRoom((res as any).room);
+        }
+        showToast((res as any).message || 'Room berhasil diperbarui', 'success');
+        return { success: true, message: (res as any).message };
+      } else {
+        showToast(res.error || 'Gagal memperbarui room', 'error');
+        return { success: false, error: res.error };
+      }
+    } catch (err: any) {
+      showToast('Gagal memperbarui room', 'error');
+      return { success: false, error: err.message };
+    }
+  };
+
+  // Toggle Room Lock
+  const toggleRoomLock = async (roomId: string, newKode?: string) => {
+    if (!user) return { success: false, error: 'Belum login' };
+    try {
+      const res = await GasClient.toggleRoomLock(roomId, user.id_user, newKode, token || undefined);
+      if (res.success) {
+        await refreshRooms();
+        showToast((res as any).message || 'Status kunci room diperbarui', 'success');
+        return { success: true, message: (res as any).message };
+      } else {
+        showToast(res.error || 'Gagal mengubah kunci room', 'error');
+        return { success: false, error: res.error };
+      }
+    } catch (err: any) {
+      showToast('Gagal mengubah kunci room', 'error');
+      return { success: false, error: err.message };
+    }
+  };
+
   return (
     <ChatContext.Provider
       value={{
@@ -437,6 +505,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         leaveRoom,
         removeMember,
         createRoom,
+        deleteRoom,
+        updateRoom,
+        toggleRoomLock,
         toast,
         showToast
       }}
