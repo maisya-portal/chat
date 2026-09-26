@@ -9,4 +9,16 @@ export default defineConfig({
     tailwindcss()
   ],
   base: './',
+  build: {
+    rollupOptions: {
+      input: {
+        app: 'src/main.tsx'
+      },
+      output: {
+        entryFileNames: 'assets/app.js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: 'assets/[name].[ext]'
+      }
+    }
+  }
 })

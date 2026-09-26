@@ -1,4 +1,15 @@
-<!doctype html>
+import fs from 'fs';
+import path from 'path';
+
+// 1. Ensure dist/index.html exists
+const distDir = path.resolve('dist');
+if (!fs.existsSync(distDir)) {
+  fs.mkdirSync(distDir, { recursive: true });
+}
+
+const templatePath = path.resolve('dist', 'index.html');
+
+const distHtml = `<!doctype html>
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
@@ -7,7 +18,6 @@
     <meta name="theme-color" content="#064E3B" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2225%22 fill=%22%23059669%22/><text y=%2268%22 x=%2250%22 font-size=%2260%22 font-family=%22sans-serif%22 font-weight=%22900%22 fill=%22white%22 text-anchor=%22middle%22>M</text></svg>" />
     <title>Maisya Chat Room - Pondok Pesantren Imam Syafi'i Brebes</title>
-    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;600&display=swap" rel="stylesheet">
@@ -17,20 +27,19 @@
       }
     </style>
     <link rel="stylesheet" crossorigin href="./assets/app.css" />
+    <script type="module" crossorigin src="./assets/app.js"></script>
   </head>
   <body class="bg-slate-950 text-slate-100 antialiased selection:bg-emerald-500 selection:text-white">
     <div id="root"></div>
-
-    <script type="module">
-      if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-        import('/src/main.tsx');
-      } else {
-        const s = document.createElement('script');
-        s.type = 'module';
-        s.crossOrigin = 'anonymous';
-        s.src = './assets/app.js';
-        document.body.appendChild(s);
-      }
-    </script>
   </body>
-</html>
+</html>`;
+
+fs.writeFileSync(templatePath, distHtml);
+
+// 2. Copy dist/assets to ./assets
+fs.cpSync(path.resolve('dist', 'assets'), path.resolve('assets'), { recursive: true });
+
+// 3. Copy dist to docs
+fs.cpSync(path.resolve('dist'), path.resolve('docs'), { recursive: true });
+
+console.log('✅ Post-build: Synced dist, assets, and docs successfully.');
