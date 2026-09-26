@@ -81,6 +81,32 @@ const INITIAL_USERS: RawUser[] = [
     approval_status: 'approved',
     foto_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     created_at: new Date(Date.now() - 86400000 * 30).toISOString()
+  },
+  {
+    id_user: 'USR_PENDING_ZAID',
+    nama: 'Zaid bin Haritsah',
+    kode_login: 'zaid12345',
+    username: 'zaid_santri',
+    role_id: 'ROLE_PESERTA',
+    status_aktif: false,
+    approval_status: 'pending',
+    no_wa: '081234567890',
+    keterangan: 'Santri Baru Kelas 10 Tahfidz Al-Quran',
+    foto_url: 'https://api.dicebear.com/7.x/initials/svg?seed=Zaid%20bin%20Haritsah',
+    created_at: new Date(Date.now() - 3600000 * 2).toISOString()
+  },
+  {
+    id_user: 'USR_PENDING_SALMAN',
+    nama: 'Ustadz Salman Al-Farisi',
+    kode_login: 'salman123',
+    username: 'salman_musyrif',
+    role_id: 'ROLE_MUSYRIF',
+    status_aktif: false,
+    approval_status: 'pending',
+    no_wa: '085712345678',
+    keterangan: 'Musyrif Pembina Asrama Putra',
+    foto_url: 'https://api.dicebear.com/7.x/initials/svg?seed=Salman%20Al-Farisi',
+    created_at: new Date(Date.now() - 3600000 * 6).toISOString()
   }
 ];
 
@@ -123,6 +149,39 @@ export function getUsersStore(): RawUser[] {
     admin.role_id = 'ROLE_SUPERADMIN';
     admin.status_aktif = true;
     admin.approval_status = 'approved';
+  }
+
+  // Jika hanya ada admin, tambahkan contoh pendaftar baru agar admin langsung bisa melihat dan menguji sistem approval
+  const hasPending = users.some(u => u.approval_status === 'pending');
+  if (!hasPending && users.length <= 1) {
+    users.push(
+      {
+        id_user: 'USR_PENDING_ZAID',
+        nama: 'Zaid bin Haritsah',
+        kode_login: 'zaid12345',
+        username: 'zaid_santri',
+        role_id: 'ROLE_PESERTA',
+        status_aktif: false,
+        approval_status: 'pending',
+        no_wa: '081234567890',
+        keterangan: 'Santri Baru Kelas 10 Tahfidz Al-Quran',
+        foto_url: 'https://api.dicebear.com/7.x/initials/svg?seed=Zaid%20bin%20Haritsah',
+        created_at: new Date(Date.now() - 3600000 * 2).toISOString()
+      },
+      {
+        id_user: 'USR_PENDING_SALMAN',
+        nama: 'Ustadz Salman Al-Farisi',
+        kode_login: 'salman123',
+        username: 'salman_musyrif',
+        role_id: 'ROLE_MUSYRIF',
+        status_aktif: false,
+        approval_status: 'pending',
+        no_wa: '085712345678',
+        keterangan: 'Musyrif Pembina Asrama Putra',
+        foto_url: 'https://api.dicebear.com/7.x/initials/svg?seed=Salman%20Al-Farisi',
+        created_at: new Date(Date.now() - 3600000 * 6).toISOString()
+      }
+    );
   }
 
   setStore('tb_users', users);
@@ -705,6 +764,12 @@ export class MockSpreadsheetBackend {
     return { success: true, users: safeUsers };
   }
 
+  static getPendingUsers() {
+    const res = this.getUsers();
+    const pending = res.users.filter(u => u.approval_status === 'pending');
+    return { success: true, users: pending };
+  }
+
   static registerUser(payload: {
     nama: string;
     username: string;
@@ -780,6 +845,28 @@ export class MockSpreadsheetBackend {
     setStore('tb_users', users);
     this.logActivity('USR_ADMIN_IFTAH', 'USER_REJECT', `Menolak pendaftaran ${target.nama} (@${target.username})`);
     return { success: true, message: `Pendaftaran ${target.nama} telah ditolak.` };
+  }
+
+  static checkUserStatus(identifier: string) {
+    const users = getUsersStore();
+    const clean = identifier.trim().toLowerCase();
+    const target = users.find(u => u.username.toLowerCase() === clean || u.nama.toLowerCase() === clean);
+    if (!target) {
+      return { success: false, error: `Pengguna "${identifier}" belum terdaftar. Silakan lakukan pendaftaran akun baru.` };
+    }
+    return {
+      success: true,
+      user: {
+        id_user: target.id_user,
+        nama: target.nama,
+        username: target.username,
+        role_id: target.role_id,
+        approval_status: target.approval_status || (target.status_aktif ? 'approved' : 'pending'),
+        status_aktif: target.status_aktif,
+        no_wa: target.no_wa,
+        created_at: target.created_at
+      }
+    };
   }
 
   static createUser(nama: string, kodeLogin: string, username: string, roleId: any, fotoUrl: string) {

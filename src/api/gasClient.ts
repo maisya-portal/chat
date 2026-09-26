@@ -107,6 +107,10 @@ export class GasClient {
         return MockSpreadsheetBackend.getActiveScreenShareSession(p.roomId);
       case 'getUsers':
         return MockSpreadsheetBackend.getUsers();
+      case 'getPendingUsers':
+        return MockSpreadsheetBackend.getPendingUsers();
+      case 'checkUserStatus':
+        return MockSpreadsheetBackend.checkUserStatus(p.identifier);
       case 'registerUser':
         return MockSpreadsheetBackend.registerUser(p);
       case 'approveUser':
@@ -224,8 +228,16 @@ export class GasClient {
     return this.request('getUsers', { token }, 'GET');
   }
 
+  static async getPendingUsers(token?: string) {
+    return this.request('getPendingUsers', { token }, 'GET');
+  }
+
   static async registerUser(data: { nama: string; username: string; kodeLogin: string; roleId?: string; noWa?: string; keterangan?: string }) {
     return this.request('registerUser', data);
+  }
+
+  static async checkUserStatus(identifier: string) {
+    return this.request('checkUserStatus', { identifier }, 'GET');
   }
 
   static async approveUser(userId: string, roleId?: string, token?: string) {

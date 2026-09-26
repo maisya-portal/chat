@@ -1,6 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Shield, KeyRound, User, ArrowRight, UserPlus, CheckCircle2, BookOpen, Phone, Info, Lock } from 'lucide-react';
+import { GasClient } from '../api/gasClient';
+import { 
+  Shield, 
+  KeyRound, 
+  User, 
+  ArrowRight, 
+  UserPlus, 
+  CheckCircle2, 
+  BookOpen, 
+  Phone, 
+  Info, 
+  Lock,
+  Eye,
+  EyeOff,
+  Search,
+  Clock,
+  Sparkles,
+  AlertCircle
+} from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export const LoginView: React.FC = () => {
@@ -13,6 +31,14 @@ export const LoginView: React.FC = () => {
   const [nama, setNama] = useState('');
   const [kodeLogin, setKodeLogin] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [rememberPassword, setRememberPassword] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Status check state
+  const [isCheckStatusOpen, setIsCheckStatusOpen] = useState(false);
+  const [checkQuery, setCheckQuery] = useState('');
+  const [checkResult, setCheckResult] = useState<any>(null);
+  const [isChecking, setIsChecking] = useState(false);
 
   // Register form state
   const [regNama, setRegNama] = useState('');
@@ -24,6 +50,28 @@ export const LoginView: React.FC = () => {
   const [regError, setRegError] = useState('');
   const [regSuccessMessage, setRegSuccessMessage] = useState('');
 
+  // Muat akun tersimpan (Fitur Ingat Password)
+  useEffect(() => {
+    const isRemembered = localStorage.getItem('maisya_remember_pass') !== 'false';
+    setRememberPassword(isRemembered);
+
+    const savedUser = localStorage.getItem('maisya_saved_user');
+    const savedPass = localStorage.getItem('maisya_saved_pass');
+
+    if (savedUser) {
+      setNama(savedUser);
+    } else {
+      // Saran default untuk kemudahan testing admin
+      setNama('iftahadmin');
+    }
+
+    if (isRemembered && savedPass) {
+      setKodeLogin(savedPass);
+    } else if (isRemembered && !savedPass && (!savedUser || savedUser === 'iftahadmin')) {
+      setKodeLogin('iftah010387');
+    }
+  }, []);
+
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nama.trim() || !kodeLogin.trim()) return;
@@ -31,6 +79,17 @@ export const LoginView: React.FC = () => {
     setLoginError('');
     const res = await login(nama.trim(), kodeLogin.trim());
     if (res.success) {
+      // Simpan atau hapus kredensial sesuai pilihan "Ingat Password Saya"
+      if (rememberPassword) {
+        localStorage.setItem('maisya_remember_pass', 'true');
+        localStorage.setItem('maisya_saved_user', nama.trim());
+        localStorage.setItem('maisya_saved_pass', kodeLogin.trim());
+      } else {
+        localStorage.setItem('maisya_remember_pass', 'false');
+        localStorage.removeItem('maisya_saved_user');
+        localStorage.removeItem('maisya_saved_pass');
+      }
+
       try {
         confetti({
           particleCount: 70,
@@ -40,6 +99,23 @@ export const LoginView: React.FC = () => {
       } catch (e) {}
     } else {
       setLoginError(res.error || 'Login gagal. Periksa kembali username/nama dan password Anda.');
+    }
+  };
+
+  const handleCheckStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!checkQuery.trim()) return;
+
+    setIsChecking(true);
+    setCheckResult(null);
+
+    try {
+      const res = await GasClient.checkUserStatus(checkQuery.trim());
+      setCheckResult(res);
+    } catch (err: any) {
+      setCheckResult({ success: false, error: 'Gagal mengecek status pendaftaran akun.' });
+    } finally {
+      setIsChecking(false);
     }
   };
 
@@ -181,18 +257,55 @@ export const LoginView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
-                    <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Password / Kode Login</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                      <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Password / Kode Login</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="text-slate-400 hover:text-emerald-400 text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      <span>{showPassword ? 'Sembunyikan' : 'Lihat'}</span>
+                    </button>
+                  </div>
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     value={kodeLogin}
                     onChange={(e) => setKodeLogin(e.target.value)}
                     placeholder="Masukkan password Anda"
                     required
                     className="w-full px-4 py-3 bg-slate-900/80 border border-slate-700/80 rounded-xl text-white text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder-slate-500 font-mono"
                   />
+                </div>
+
+                {/* Fitur Ingat Password Saya & Isi Cepat Akun Admin */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-0.5 text-xs">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-slate-300 hover:text-white">
+                    <input
+                      type="checkbox"
+                      id="remember_password_checkbox"
+                      checked={rememberPassword}
+                      onChange={(e) => setRememberPassword(e.target.checked)}
+                      className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-900 border-slate-700 bg-slate-900 cursor-pointer"
+                    />
+                    <span className="font-medium text-slate-200">Ingat password saya</span>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNama('iftahadmin');
+                      setKodeLogin('iftah010387');
+                      setRememberPassword(true);
+                    }}
+                    className="text-[11px] text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-1 font-mono font-semibold self-start sm:self-auto cursor-pointer"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    <span>Isi Akun Admin</span>
+                  </button>
                 </div>
 
                 <button
@@ -214,11 +327,109 @@ export const LoginView: React.FC = () => {
                       setMode('register');
                       setLoginError('');
                     }}
-                    className="text-emerald-400 font-bold hover:underline"
+                    className="text-emerald-400 font-bold hover:underline cursor-pointer"
                   >
                     Daftar di sini
                   </button>
                 </p>
+              </div>
+
+              {/* Fitur Cek Status Pendaftaran */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCheckStatusOpen(!isCheckStatusOpen);
+                    setCheckResult(null);
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-slate-900/60 hover:bg-slate-800/80 border border-slate-700/60 text-slate-300 hover:text-emerald-400 text-xs font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Search className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{isCheckStatusOpen ? 'Tutup Pengecekan Status' : 'Cek Status Pendaftaran Akun Anda'}</span>
+                </button>
+
+                {isCheckStatusOpen && (
+                  <div className="mt-3 p-3.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 space-y-3 animate-in fade-in duration-200">
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Masukkan <strong>Username</strong> atau <strong>Nama Lengkap</strong> yang Anda daftarkan untuk melihat status verifikasi Admin:
+                    </p>
+
+                    <form onSubmit={handleCheckStatus} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={checkQuery}
+                        onChange={(e) => setCheckQuery(e.target.value)}
+                        placeholder="Contoh: zaid_santri atau nama Anda"
+                        required
+                        className="flex-1 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500 font-mono"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isChecking || !checkQuery.trim()}
+                        className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
+                      >
+                        <Search className="w-3 h-3" />
+                        <span>{isChecking ? '...' : 'Cek'}</span>
+                      </button>
+                    </form>
+
+                    {checkResult && (
+                      <div className="pt-1">
+                        {checkResult.success && checkResult.user ? (
+                          <div className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+                            checkResult.user.approval_status === 'approved'
+                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                              : checkResult.user.approval_status === 'rejected'
+                              ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                              : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                          }`}>
+                            <div className="flex items-center justify-between font-bold">
+                              <span>{checkResult.user.nama} (@{checkResult.user.username})</span>
+                              {checkResult.user.approval_status === 'approved' ? (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px]">
+                                  ✅ Disetujui (Aktif)
+                                </span>
+                              ) : checkResult.user.approval_status === 'rejected' ? (
+                                <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px]">
+                                  ❌ Ditolak
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] animate-pulse">
+                                  ⏳ Menunggu Izin Admin
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="text-[11px] text-slate-300 leading-relaxed">
+                              {checkResult.user.approval_status === 'approved'
+                                ? 'Selamat! Akun Anda telah disetujui oleh Admin (iftahadmin). Anda sekarang sudah dapat login.'
+                                : checkResult.user.approval_status === 'rejected'
+                                ? 'Pendaftaran akun Anda ditolak oleh admin. Silakan hubungi pengurus pesantren.'
+                                : 'Pendaftaran Anda telah tersimpan di database dan sedang menunggu persetujuan (approval) dari Admin (iftahadmin).'}
+                            </p>
+
+                            {checkResult.user.approval_status === 'approved' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNama(checkResult.user.username);
+                                  setIsCheckStatusOpen(false);
+                                }}
+                                className="text-[11px] text-emerald-400 font-bold hover:underline block mt-1 cursor-pointer"
+                              >
+                                Masukkan username ini ke form login ➔
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
+                            {checkResult.error || 'Pengguna belum terdaftar.'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}

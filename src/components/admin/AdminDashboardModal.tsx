@@ -141,6 +141,29 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
     }
   };
 
+  const handleAddSimulatedApplicant = async () => {
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    const names = [
+      'Ahmad Syarifuddin',
+      'Fatimah Azzahra',
+      'Ustadz Abdullah Al-Atsari',
+      'Bilal bin Rabah',
+      'Thariq bin Ziyad'
+    ];
+    const pickedName = names[Math.floor(Math.random() * names.length)];
+    const username = pickedName.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + randomNum;
+    
+    await GasClient.registerUser({
+      nama: `${pickedName} (${randomNum})`,
+      username: username,
+      kodeLogin: 'santri' + randomNum,
+      roleId: pickedName.startsWith('Ustadz') ? 'ROLE_MUSYRIF' : 'ROLE_PESERTA',
+      noWa: '0812' + randomNum + '789',
+      keterangan: 'Pendaftaran mandiri santri/asatidzah baru'
+    });
+    await loadData();
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNama || !newKode || !newUsername) return;
@@ -385,8 +408,34 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
           {/* TAB 1: IKHTISAR & STATISTIK */}
           {activeTab === 'stats' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div 
+                  onClick={() => setActiveTab('approvals')}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer hover:scale-[1.02] ${
+                    pendingUsers.length > 0
+                      ? 'bg-amber-950/30 border-amber-500/50 shadow-md shadow-amber-950/40 ring-1 ring-amber-500/40'
+                      : 'bg-slate-800/60 border-slate-700/60'
+                  }`}
+                  title="Klik untuk membuka tab persetujuan user"
+                >
+                  <div className="flex items-center justify-between text-amber-400 mb-2">
+                    <span className="text-xs font-semibold">Menunggu Izin</span>
+                    <UserCheck className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-2xl font-black text-amber-400">{pendingUsers.length}</p>
+                    {pendingUsers.length > 0 && (
+                      <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded-full animate-pulse">
+                        Perlu Izin
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div 
+                  onClick={() => setActiveTab('users')}
+                  className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 cursor-pointer hover:border-slate-500 transition-colors"
+                >
                   <div className="flex items-center justify-between text-slate-400 mb-2">
                     <span className="text-xs font-semibold">Total User</span>
                     <Users className="w-4 h-4 text-emerald-400" />
@@ -402,7 +451,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                   <p className="text-2xl font-black text-emerald-400">{stats?.activeUsers || 0}</p>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60">
+                <div 
+                  onClick={() => setActiveTab('rooms')}
+                  className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 cursor-pointer hover:border-slate-500 transition-colors"
+                >
                   <div className="flex items-center justify-between text-slate-400 mb-2">
                     <span className="text-xs font-semibold">Total Room</span>
                     <MessageSquare className="w-4 h-4 text-sky-400" />
@@ -426,6 +478,77 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                   <p className="text-2xl font-black text-white">{stats?.totalImages || 0}</p>
                 </div>
               </div>
+
+              {/* QUICK ACTION: PENDING APPROVALS LIST DIRECTLY IN TAB IKHTISAR */}
+              {pendingUsers.length > 0 && (
+                <div className="p-5 rounded-2xl bg-gradient-to-br from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/40 shadow-xl space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-500/20 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold shrink-0">
+                        <UserCheck className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                          <span>{pendingUsers.length} Pendaftar Baru Menunggu Izin Anda</span>
+                          <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold animate-pulse">
+                            PENTING
+                          </span>
+                        </h4>
+                        <p className="text-xs text-amber-200/80">
+                          Akun baru tidak dapat login sebelum Anda menekan tombol "Setujui".
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('approvals')}
+                      className="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 self-start sm:self-center transition-colors cursor-pointer"
+                    >
+                      <span>Buka Halaman Lengkap</span>
+                      <span>→</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {pendingUsers.slice(0, 4).map((u) => (
+                      <div
+                        key={u.id_user}
+                        className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-700/80 flex items-center justify-between gap-3 hover:border-amber-500/40 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar src={u.foto_url} name={u.nama} size="sm" isOnline={false} />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 truncate">
+                              <p className="text-xs font-bold text-white truncate">{u.nama}</p>
+                              <Badge roleId={u.role_id} size="sm" />
+                            </div>
+                            <p className="text-[11px] text-slate-400 truncate">
+                              @{u.username} {u.no_wa ? `• WA: ${u.no_wa}` : ''}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => handleReject(u.id_user)}
+                            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs transition-colors cursor-pointer"
+                            title="Tolak pendaftaran"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleApprove(u.id_user, u.role_id)}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1 shadow-md shadow-emerald-950 transition-all hover:scale-[1.02] cursor-pointer"
+                            title="Setujui dan aktifkan akun ini"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Setujui</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="p-5 rounded-2xl bg-slate-800/40 border border-slate-700/60 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
@@ -455,7 +578,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
           {/* TAB: PERSETUJUAN PENDAFTARAN (APPROVALS) */}
           {activeTab === 'approvals' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-700/60">
                 <div>
                   <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
                     <UserCheck className="w-4 h-4 text-amber-400" />
@@ -465,17 +588,41 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                     User yang mendaftar online harus disetujui oleh Admin (<span className="text-emerald-400 font-mono">iftahadmin</span>) sebelum dapat login ke ruang chat.
                   </p>
                 </div>
-                <button
-                  onClick={loadData}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs flex items-center gap-1.5 transition-colors"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  <span>Segarkan</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleAddSimulatedApplicant}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Buat pendaftar acak untuk menguji alur persetujuan"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Pendaftar Uji Coba</span>
+                  </button>
+                  <button
+                    onClick={loadData}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Segarkan</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* INFO BOX TENTANG SISTEM PENDAFTARAN */}
+              <div className="p-3.5 rounded-xl bg-slate-800/40 border border-slate-700/60 text-xs space-y-1">
+                <div className="flex items-center gap-2 text-amber-300 font-semibold">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>Petunjuk Pendaftar Baru:</span>
+                </div>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  • <strong>Penyimpanan Browser (Offline/Simulasi):</strong> Jika aplikasi belum dihubungkan ke URL Google Apps Script yang sama di tab <em>Koneksi GAS API</em>, pendaftaran yang dilakukan di tab incognito atau HP lain akan tersimpan di browser masing-masing.
+                </p>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  • <strong>Koneksi Multi-Perangkat (Online Nyata):</strong> Sambungkan URL Google Apps Script Anda agar pendaftaran dari perangkat manapun otomatis masuk ke Google Spreadsheet dan langsung tampil di panel admin ini secara realtime.
+                </p>
               </div>
 
               {pendingUsers.length === 0 ? (
-                <div className="py-12 text-center rounded-2xl bg-slate-800/20 border border-slate-700/40 space-y-2">
+                <div className="py-12 text-center rounded-2xl bg-slate-800/20 border border-slate-700/40 space-y-3">
                   <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center mx-auto">
                     <CheckCircle className="w-6 h-6" />
                   </div>
@@ -483,6 +630,13 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                   <p className="text-xs text-slate-400 max-w-sm mx-auto">
                     Tidak ada antrian pendaftaran pengguna baru yang menunggu persetujuan saat ini.
                   </p>
+                  <button
+                    onClick={handleAddSimulatedApplicant}
+                    className="mt-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold inline-flex items-center gap-2 transition-all hover:scale-[1.02] shadow-md cursor-pointer"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Buat 1 Pendaftar Uji Coba Sekarang</span>
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-3">
