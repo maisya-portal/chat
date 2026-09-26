@@ -20,6 +20,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { PwaInstallButton } from '../components/common/PwaInstallButton';
 
 export const LoginView: React.FC = () => {
   const { login, register, isLoading } = useAuth();
@@ -166,12 +167,22 @@ export const LoginView: React.FC = () => {
 
       <div className="w-full max-w-md z-10 space-y-6">
         
-        {/* Header Branding */}
+        {/* Header Branding with Glowing Custom WhatsApp-Style Chat Icon */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 p-0.5 shadow-xl shadow-emerald-950/80 mb-2">
-            <div className="w-full h-full bg-slate-900 rounded-[14px] flex items-center justify-center text-emerald-400 font-black text-2xl">
-              M
-            </div>
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 p-0.5 shadow-2xl shadow-emerald-900/60 mb-1 relative group">
+            <img 
+              src="./icons/icon-192.png" 
+              alt="Maisya Room Logo" 
+              className="w-full h-full rounded-[14px] object-cover shadow-inner group-hover:scale-105 transition-transform"
+              onError={(e) => {
+                // Fallback jika image belum termuat
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+            </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
             Maisya <span className="text-emerald-400">Chat Room</span>
@@ -603,6 +614,9 @@ export const LoginView: React.FC = () => {
           )}
 
         </div>
+
+        {/* PWA Install Banner */}
+        <PwaInstallButton variant="banner" />
 
         {/* Footer Note */}
         <p className="text-[11px] text-center text-slate-500 flex items-center justify-center gap-1.5">

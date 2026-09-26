@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-// 1. Ensure dist/index.html exists
+// 1. Ensure dist directories exist
 const distDir = path.resolve('dist');
 if (!fs.existsSync(distDir)) {
   fs.mkdirSync(distDir, { recursive: true });
@@ -13,10 +13,25 @@ const distHtml = `<!doctype html>
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="description" content="Maisya Chat Room - Platform Komunikasi Internal & Halaqah Pondok Pesantren Imam Syafi'i Brebes berbasis Google Spreadsheet DB_MAISYA_CHAT dan WebRTC" />
     <meta name="theme-color" content="#064E3B" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2225%22 fill=%22%23059669%22/><text y=%2268%22 x=%2250%22 font-size=%2260%22 font-family=%22sans-serif%22 font-weight=%22900%22 fill=%22white%22 text-anchor=%22middle%22>M</text></svg>" />
+    
+    <!-- PWA & Mobile Web App Meta -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Maisya Room" />
+    <meta name="application-name" content="Maisya Room" />
+    
+    <!-- PWA Manifest & Icons -->
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="./icons/icon-512.png" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
+
     <title>Maisya Chat Room - Pondok Pesantren Imam Syafi'i Brebes</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,15 +46,54 @@ const distHtml = `<!doctype html>
   </head>
   <body class="bg-slate-950 text-slate-100 antialiased selection:bg-emerald-500 selection:text-white">
     <div id="root"></div>
+
+    <!-- Service Worker Registration for PWA -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js', { scope: './' })
+            .then(reg => console.log('✅ PWA Service Worker Registered:', reg.scope))
+            .catch(err => console.warn('PWA SW Register Error:', err));
+        });
+      }
+    </script>
   </body>
 </html>`;
 
 fs.writeFileSync(templatePath, distHtml);
 
-// 2. Copy dist/assets to ./assets
-fs.cpSync(path.resolve('dist', 'assets'), path.resolve('assets'), { recursive: true });
+// 2. Copy public PWA assets to dist
+const publicFiles = [
+  'manifest.webmanifest',
+  'manifest.json',
+  'sw.js',
+  'favicon.svg',
+  'icon-192.png',
+  'icon-512.png',
+  'apple-touch-icon.png'
+];
 
-// 3. Copy dist to docs
+publicFiles.forEach(file => {
+  const src = path.resolve('public', file);
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, path.resolve('dist', file));
+    // Also copy to root for GitHub pages root resolution
+    fs.copyFileSync(src, path.resolve(file));
+  }
+});
+
+// Copy icons directory to dist/icons and root icons
+if (fs.existsSync(path.resolve('public', 'icons'))) {
+  fs.cpSync(path.resolve('public', 'icons'), path.resolve('dist', 'icons'), { recursive: true });
+  fs.cpSync(path.resolve('public', 'icons'), path.resolve('icons'), { recursive: true });
+}
+
+// 3. Copy dist/assets to ./assets
+if (fs.existsSync(path.resolve('dist', 'assets'))) {
+  fs.cpSync(path.resolve('dist', 'assets'), path.resolve('assets'), { recursive: true });
+}
+
+// 4. Copy dist to docs
 fs.cpSync(path.resolve('dist'), path.resolve('docs'), { recursive: true });
 
-console.log('✅ Post-build: Synced dist, assets, and docs successfully.');
+console.log('✅ Post-build: Synced dist, assets, docs, and PWA manifest & service worker successfully.');

@@ -19,6 +19,7 @@ import {
   Radio,
   UserCheck
 } from 'lucide-react';
+import { PwaInstallButton } from '../common/PwaInstallButton';
 
 interface SidebarRoomListProps {
   onOpenAdminDashboard: () => void;
@@ -284,6 +285,11 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
             >
               <LogOut className="w-4 h-4" />
             </button>
+          </div>
+
+          {/* PWA Install Button */}
+          <div className="mb-2">
+            <PwaInstallButton variant="sidebar" />
           </div>
 
           {/* Admin Dashboard Entry Button */}
