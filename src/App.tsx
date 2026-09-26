@@ -1,4 +1,5 @@
 import React from 'react';
+import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
 import { ScreenShareProvider } from './context/ScreenShareContext';
@@ -37,8 +38,10 @@ const AppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

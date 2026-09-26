@@ -346,8 +346,12 @@ export class MockSpreadsheetBackend {
       username: user.username,
       role_id: user.role_id,
       status_aktif: user.status_aktif,
+      approval_status: user.approval_status || 'approved',
+      no_wa: user.no_wa,
+      keterangan: user.keterangan,
       foto_url: user.foto_url,
-      created_at: user.created_at
+      created_at: user.created_at,
+      updated_at: user.updated_at
     };
 
     return { success: true, user: safeUser, permissions };
@@ -959,6 +963,74 @@ export class MockSpreadsheetBackend {
 
     this.logActivity('USR_ADMIN_IFTAH', 'USER_DELETE', `Menghapus akun pengguna: ${target.nama} (@${target.username})`);
     return { success: true, message: `Pengguna "${target.nama}" berhasil dihapus secara permanen.` };
+  }
+
+  static updateProfile(userId: string, data: {
+    nama?: string;
+    fotoUrl?: string;
+    noWa?: string;
+    keterangan?: string;
+    kodeLogin?: string;
+  }) {
+    const users = getUsersStore();
+    const target = users.find(u => u.id_user === userId);
+    if (!target) return { success: false, error: 'User tidak ditemukan' };
+
+    if (data.nama && data.nama.trim()) {
+      target.nama = data.nama.trim();
+    }
+    if (data.fotoUrl !== undefined) {
+      target.foto_url = data.fotoUrl.trim() || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(target.nama)}`;
+    }
+    if (typeof data.noWa === 'string') {
+      target.no_wa = data.noWa.trim();
+    }
+    if (typeof data.keterangan === 'string') {
+      target.keterangan = data.keterangan.trim();
+    }
+    if (data.kodeLogin && data.kodeLogin.trim()) {
+      target.kode_login = data.kodeLogin.trim();
+    }
+    target.updated_at = new Date().toISOString();
+    setStore('tb_users', users);
+
+    // Update in members
+    const members = getStore<RoomMember[]>('tb_members', []);
+    members.forEach(m => {
+      if (m.id_user === userId) {
+        if (data.nama) m.nama = data.nama.trim();
+      }
+    });
+    setStore('tb_members', members);
+
+    // Update in messages author info
+    const messages = getStore<Message[]>('tb_messages', []);
+    messages.forEach(m => {
+      if (m.id_user === userId) {
+        if (data.nama) m.nama_pengirim = data.nama.trim();
+        if (data.fotoUrl !== undefined) m.foto_pengirim = target.foto_url;
+      }
+    });
+    setStore('tb_messages', messages);
+
+    this.logActivity(userId, 'PROFILE_UPDATE', `Memperbarui profil diri: ${target.nama}`);
+    return { 
+      success: true, 
+      message: 'Profil Anda berhasil diperbarui!',
+      user: {
+        id_user: target.id_user,
+        nama: target.nama,
+        username: target.username,
+        role_id: target.role_id,
+        status_aktif: target.status_aktif,
+        approval_status: target.approval_status || 'approved',
+        no_wa: target.no_wa,
+        keterangan: target.keterangan,
+        foto_url: target.foto_url,
+        created_at: target.created_at,
+        updated_at: target.updated_at
+      }
+    };
   }
 
   static toggleUserStatus(userId: string) {

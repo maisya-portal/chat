@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useChat } from '../../context/ChatContext';
 import { useScreenShare } from '../../context/ScreenShareContext';
+import { useTheme } from '../../context/ThemeContext';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { ReplyBanner } from './ReplyBanner';
@@ -45,7 +46,31 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const [isWatchingScreen, setIsWatchingScreen] = useState(false);
   const [roomScreenSession, setRoomScreenSession] = useState<ScreenShareSession | null>(null);
 
+  const { wallpaper, customWallpaperUrl } = useTheme();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const getWallpaperClass = () => {
+    switch (wallpaper) {
+      case 'emerald': return 'wallpaper-emerald';
+      case 'night': return 'wallpaper-night';
+      case 'minimal': return 'wallpaper-minimal';
+      case 'doodle': return 'wallpaper-doodle';
+      case 'islamic':
+      default:
+        return 'wallpaper-islamic';
+    }
+  };
+
+  const getWallpaperStyle = (): React.CSSProperties => {
+    if (wallpaper === 'custom' && customWallpaperUrl) {
+      return {
+        backgroundImage: `url(${customWallpaperUrl})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      };
+    }
+    return {};
+  };
 
   // Poll screen share session for active room
   useEffect(() => {
@@ -98,7 +123,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const effectiveSession = (isSharing && activeSession) ? activeSession : roomScreenSession;
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-950/70 overflow-hidden relative">
+    <div 
+      className={`flex-1 flex flex-col h-full overflow-hidden relative transition-all duration-300 ${getWallpaperClass()}`}
+      style={getWallpaperStyle()}
+    >
       
       {/* Chat Area Top Bar */}
       <div className="h-16 px-4 border-b border-slate-800/80 bg-slate-900/80 backdrop-blur-md flex items-center justify-between z-10">

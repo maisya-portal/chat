@@ -17,9 +17,13 @@ import {
   Users, 
   Database,
   Radio,
-  UserCheck
+  UserCheck,
+  Palette,
+  Settings,
+  Edit3
 } from 'lucide-react';
 import { PwaInstallButton } from '../common/PwaInstallButton';
+import { UserSettingsModal } from '../profile/UserSettingsModal';
 
 interface SidebarRoomListProps {
   onOpenAdminDashboard: () => void;
@@ -39,6 +43,7 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [joiningRoom, setJoiningRoom] = useState<Room | null>(null);
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState<number>(0);
 
   const canCreateRoom = can('create_room');
@@ -263,28 +268,48 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
         {/* User Footer Profile & Actions */}
         <div className="p-3 border-t border-slate-800/80 bg-slate-950/70">
           <div className="flex items-center justify-between mb-2.5">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <Avatar
-                src={user?.foto_url}
-                name={user?.nama || 'Pengguna'}
-                size="md"
-                isOnline={true}
-              />
+            <div 
+              onClick={() => setIsSettingsOpen(true)}
+              className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-85 transition-all group"
+              title="Klik untuk mengubah profil, foto, tema, & latar chat"
+            >
+              <div className="relative shrink-0">
+                <Avatar
+                  src={user?.foto_url}
+                  name={user?.nama || 'Pengguna'}
+                  size="md"
+                  isOnline={true}
+                />
+                <span className="absolute -bottom-1 -right-1 p-0.5 rounded-full bg-emerald-600 text-white shadow ring-1 ring-slate-950 group-hover:scale-110 transition-transform">
+                  <Edit3 className="w-2.5 h-2.5" />
+                </span>
+              </div>
               <div className="min-w-0">
-                <p className="text-xs font-bold text-white truncate">
+                <p className="text-xs font-bold text-white truncate group-hover:text-emerald-300 transition-colors">
                   {user?.nama}
                 </p>
-                <Badge roleId={user?.role_id} size="sm" />
+                <div className="flex items-center gap-1.5">
+                  <Badge roleId={user?.role_id} size="sm" />
+                </div>
               </div>
             </div>
 
-            <button
-              onClick={logout}
-              className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-              title="Keluar (Logout)"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                className="p-2 rounded-xl text-slate-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors cursor-pointer"
+                title="Pengaturan Profil, Tema (Gelap/Terang), & Latar Chat"
+              >
+                <Palette className="w-4 h-4" />
+              </button>
+              <button
+                onClick={logout}
+                className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                title="Keluar (Logout)"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* PWA Install Button */}
@@ -323,6 +348,12 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
       <CreateRoomModal
         isOpen={isCreateRoomOpen}
         onClose={() => setIsCreateRoomOpen(false)}
+      />
+
+      {/* User Settings, Theme, & Wallpaper Modal */}
+      <UserSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
       />
     </>
   );

@@ -121,6 +121,8 @@ export class GasClient {
         return MockSpreadsheetBackend.createUser(p.nama, p.kodeLogin, p.username, p.roleId, p.fotoUrl);
       case 'updateUser':
         return MockSpreadsheetBackend.updateUser(p.userId, p.data || p);
+      case 'updateProfile':
+        return MockSpreadsheetBackend.updateProfile(p.userId, p.data || p);
       case 'deleteUser':
         return MockSpreadsheetBackend.deleteUser(p.userId);
       case 'toggleUserStatus':
@@ -272,6 +274,17 @@ export class GasClient {
 
   static async deleteUser(userId: string, token?: string) {
     return this.request('deleteUser', { userId, token });
+  }
+
+  static async updateProfile(userId: string, data: {
+    nama?: string;
+    fotoUrl?: string;
+    noWa?: string;
+    keterangan?: string;
+    kodeLogin?: string;
+    token?: string;
+  }) {
+    return this.request('updateProfile', { userId, data });
   }
 
   static async toggleUserStatus(userId: string, token?: string) {

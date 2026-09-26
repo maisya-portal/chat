@@ -16,6 +16,13 @@ interface AuthContextType {
   isAdmin: boolean;
   isMusyrif: boolean;
   refreshUser: () => Promise<void>;
+  updateProfile: (data: {
+    nama?: string;
+    fotoUrl?: string;
+    noWa?: string;
+    keterangan?: string;
+    kodeLogin?: string;
+  }) => Promise<{ success: boolean; error?: string; message?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -118,6 +125,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateProfile = async (data: {
+    nama?: string;
+    fotoUrl?: string;
+    noWa?: string;
+    keterangan?: string;
+    kodeLogin?: string;
+  }) => {
+    if (!user) return { success: false, error: 'Belum login' };
+    try {
+      const res = await GasClient.updateProfile(user.id_user, data);
+      if (res.success) {
+        if (res.user) {
+          setUser(res.user);
+        } else {
+          setUser(prev => prev ? ({
+            ...prev,
+            ...(data.nama ? { nama: data.nama.trim() } : {}),
+            ...(data.fotoUrl !== undefined ? { foto_url: data.fotoUrl } : {}),
+            ...(data.noWa !== undefined ? { no_wa: data.noWa } : {}),
+            ...(data.keterangan !== undefined ? { keterangan: data.keterangan } : {})
+          }) : prev);
+        }
+        return { success: true, message: res.message || 'Profil berhasil diperbarui' };
+      }
+      return { success: false, error: res.error || 'Gagal memperbarui profil' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Terjadi kesalahan' };
+    }
+  };
+
   const isSuperAdmin = user?.role_id === 'ROLE_SUPERADMIN';
   const isAdmin = isSuperAdmin || user?.role_id === 'ROLE_ADMIN';
   const isMusyrif = user?.role_id === 'ROLE_MUSYRIF';
@@ -136,7 +173,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isSuperAdmin,
         isAdmin,
         isMusyrif,
-        refreshUser
+        refreshUser,
+        updateProfile
       }}
     >
       {children}
