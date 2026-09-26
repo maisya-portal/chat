@@ -5,6 +5,8 @@ export type RoleId =
   | 'ROLE_MUSYRIF' 
   | 'ROLE_PESERTA';
 
+export type ApprovalStatus = 'approved' | 'pending' | 'rejected';
+
 export interface User {
   id_user: string;
   nama: string;
@@ -12,6 +14,9 @@ export interface User {
   role_id: RoleId;
   role_nama?: string;
   status_aktif: boolean;
+  approval_status?: ApprovalStatus;
+  no_wa?: string;
+  keterangan?: string;
   foto_url?: string;
   created_at: string;
   updated_at?: string;

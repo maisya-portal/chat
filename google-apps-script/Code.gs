@@ -179,7 +179,19 @@ function doPost(e) {
         result = endScreenShareSession(body.sessionId, body.token);
         break;
 
-      // Manajemen Pengguna (Admin)
+      // Manajemen Pengguna & Persetujuan (Approval)
+      case "registerUser":
+        result = registerUser(body.nama, body.username, body.kodeLogin, body.roleId, body.noWa, body.keterangan);
+        break;
+
+      case "approveUser":
+        result = approveUser(body.userId, body.roleId, body.token);
+        break;
+
+      case "rejectUser":
+        result = rejectUser(body.userId, body.reason, body.token);
+        break;
+
       case "createUser":
         result = createUser(body.nama, body.kodeLogin, body.username, body.roleId, body.fotoUrl, body.token);
         break;
@@ -340,7 +352,16 @@ function loginUser(nama, kodeLogin) {
   );
 
   if (!user) {
-    return { success: false, error: "Pengguna dengan nama '" + nama + "' tidak ditemukan." };
+    return { success: false, error: "Pengguna dengan nama / username '" + nama + "' tidak ditemukan. Silakan lakukan pendaftaran akun." };
+  }
+
+  // Cek persetujuan admin (approval)
+  if (user.approval_status === "pending") {
+    return { success: false, error: "Pendaftaran akun Anda masih MENUNGGU PERSETUJUAN (Approval) dari Admin (iftahadmin). Silakan hubungi admin pesantren." };
+  }
+
+  if (user.approval_status === "rejected") {
+    return { success: false, error: "Pendaftaran akun Anda ditolak oleh Admin. Silakan hubungi admin pesantren." };
   }
 
   if (user.status_aktif !== true && user.status_aktif !== "TRUE" && user.status_aktif !== 1) {
@@ -1061,12 +1082,102 @@ function getUsers(token) {
     role_id: u.role_id,
     role_nama: roleMap[u.role_id] || u.role_id,
     status_aktif: (u.status_aktif === true || u.status_aktif === "TRUE" || u.status_aktif === 1),
+    approval_status: u.approval_status || ((u.status_aktif === true || u.status_aktif === "TRUE" || u.status_aktif === 1) ? "approved" : "pending"),
+    no_wa: u.no_wa || "",
+    keterangan: u.keterangan || "",
     foto_url: u.foto_url,
     created_at: u.created_at,
     updated_at: u.updated_at
   }));
 
   return { success: true, users: safeUsers };
+}
+
+function registerUser(nama, username, kodeLogin, roleId, noWa, keterangan) {
+  if (!nama || !username || !kodeLogin) {
+    return { success: false, error: "Nama, username, dan password wajib diisi." };
+  }
+
+  const { rows: users } = getSheetData("tb_users");
+  const cleanUsername = username.toString().trim().toLowerCase();
+  const cleanNama = nama.toString().trim();
+
+  if (users.some(u => u.username && u.username.toString().trim().toLowerCase() === cleanUsername)) {
+    return { success: false, error: "Username '" + username + "' sudah digunakan." };
+  }
+
+  const ss = getSpreadsheet();
+  const userSheet = ss.getSheetByName("tb_users");
+  const userId = "USR_" + Utilities.getUuid().substring(0, 8).toUpperCase();
+  const now = new Date().toISOString();
+
+  const newRow = [
+    userId,
+    cleanNama,
+    hashPassword(kodeLogin),
+    cleanUsername,
+    roleId || "ROLE_PESERTA",
+    false, // Belum aktif sampai disetujui
+    "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(cleanNama),
+    now,
+    now,
+    "pending",
+    noWa || "",
+    keterangan || ""
+  ];
+
+  userSheet.appendRow(newRow);
+  logActivity("SYSTEM", "USER_REGISTER: " + cleanNama, null);
+
+  return {
+    success: true,
+    message: "Pendaftaran berhasil dikirim! Akun Anda sedang menunggu persetujuan (approval) dari Admin (iftahadmin)."
+  };
+}
+
+function approveUser(userId, roleId, token) {
+  if (!checkUserPermission(token, "manage_users")) {
+    return { success: false, error: "Akses ditolak: Hanya admin yang dapat menyetujui akun." };
+  }
+
+  const { sheet, rows: users } = getSheetData("tb_users");
+  const user = users.find(u => u.id_user === userId);
+  if (!user) return { success: false, error: "Pengguna tidak ditemukan." };
+
+  const now = new Date().toISOString();
+  sheet.getRange(user._rowIndex, 6).setValue(true); // status_aktif = true
+  sheet.getRange(user._rowIndex, 9).setValue(now);  // updated_at
+  if (roleId) sheet.getRange(user._rowIndex, 5).setValue(roleId);
+  if (sheet.getLastColumn() >= 10) {
+    sheet.getRange(user._rowIndex, 10).setValue("approved");
+  }
+
+  const session = verifyToken(token);
+  logActivity(session ? session.userId : "ADMIN", "APPROVE_USER: " + user.nama, null);
+
+  return { success: true, message: "Akun " + user.nama + " berhasil disetujui & diaktifkan." };
+}
+
+function rejectUser(userId, reason, token) {
+  if (!checkUserPermission(token, "manage_users")) {
+    return { success: false, error: "Akses ditolak: Hanya admin yang dapat menolak pendaftaran." };
+  }
+
+  const { sheet, rows: users } = getSheetData("tb_users");
+  const user = users.find(u => u.id_user === userId);
+  if (!user) return { success: false, error: "Pengguna tidak ditemukan." };
+
+  const now = new Date().toISOString();
+  sheet.getRange(user._rowIndex, 6).setValue(false); // status_aktif = false
+  sheet.getRange(user._rowIndex, 9).setValue(now);
+  if (sheet.getLastColumn() >= 10) {
+    sheet.getRange(user._rowIndex, 10).setValue("rejected");
+  }
+
+  const session = verifyToken(token);
+  logActivity(session ? session.userId : "ADMIN", "REJECT_USER: " + user.nama, null);
+
+  return { success: true, message: "Pendaftaran " + user.nama + " telah ditolak." };
 }
 
 function createUser(nama, kodeLogin, username, roleId, fotoUrl, token) {

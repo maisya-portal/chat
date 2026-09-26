@@ -72,46 +72,62 @@ interface RawUser extends User {
 
 const INITIAL_USERS: RawUser[] = [
   {
-    id_user: 'USR_ADMIN',
-    nama: 'Admin Maisya',
-    kode_login: 'ADMIN2026',
-    username: 'admin',
+    id_user: 'USR_ADMIN_IFTAH',
+    nama: 'iftahadmin',
+    kode_login: 'iftah010387',
+    username: 'iftahadmin',
     role_id: 'ROLE_SUPERADMIN',
     status_aktif: true,
+    approval_status: 'approved',
     foto_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    created_at: new Date(Date.now() - 86400000 * 10).toISOString()
-  },
-  {
-    id_user: 'USR_FAUZI',
-    nama: 'Ustadz Ahmad Fauzi',
-    kode_login: 'ISB2026',
-    username: 'ahmadfauzi',
-    role_id: 'ROLE_MUSYRIF',
-    status_aktif: true,
-    foto_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    created_at: new Date(Date.now() - 86400000 * 8).toISOString()
-  },
-  {
-    id_user: 'USR_STAFF_TU',
-    nama: 'Staff TU Maisya',
-    kode_login: 'TU2026',
-    username: 'stafftu',
-    role_id: 'ROLE_STAFF',
-    status_aktif: true,
-    foto_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-    created_at: new Date(Date.now() - 86400000 * 5).toISOString()
-  },
-  {
-    id_user: 'USR_SANTRI_ZAID',
-    nama: 'Zaid bin Tsabit',
-    kode_login: 'SANTRI2026',
-    username: 'zaid',
-    role_id: 'ROLE_PESERTA',
-    status_aktif: true,
-    foto_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-    created_at: new Date(Date.now() - 86400000 * 3).toISOString()
+    created_at: new Date(Date.now() - 86400000 * 30).toISOString()
   }
 ];
+
+export function getUsersStore(): RawUser[] {
+  let users = getStore<RawUser[]>('tb_users', INITIAL_USERS);
+
+  // Bersihkan data akun demo lama bawaan
+  users = users.filter(u => 
+    u.id_user !== 'USR_ADMIN' && 
+    u.id_user !== 'USR_FAUZI' && 
+    u.id_user !== 'USR_STAFF_TU' && 
+    u.id_user !== 'USR_SANTRI_ZAID' &&
+    u.kode_login !== 'ADMIN2026' &&
+    u.kode_login !== 'ISB2026' &&
+    u.kode_login !== 'TU2026' &&
+    u.kode_login !== 'SANTRI2026'
+  );
+
+  // Pastikan akun utama iftahadmin selalu aktif dan memiliki password iftah010387
+  let admin = users.find(u => 
+    u.username?.toLowerCase() === 'iftahadmin' || 
+    u.nama?.toLowerCase() === 'iftahadmin'
+  );
+
+  if (!admin) {
+    admin = {
+      id_user: 'USR_ADMIN_IFTAH',
+      nama: 'iftahadmin',
+      kode_login: 'iftah010387',
+      username: 'iftahadmin',
+      role_id: 'ROLE_SUPERADMIN',
+      status_aktif: true,
+      approval_status: 'approved',
+      foto_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      created_at: new Date(Date.now() - 86400000 * 30).toISOString()
+    };
+    users.unshift(admin);
+  } else {
+    admin.kode_login = 'iftah010387';
+    admin.role_id = 'ROLE_SUPERADMIN';
+    admin.status_aktif = true;
+    admin.approval_status = 'approved';
+  }
+
+  setStore('tb_users', users);
+  return users;
+}
 
 const INITIAL_ROOMS: Room[] = [
   {
@@ -119,7 +135,7 @@ const INITIAL_ROOMS: Room[] = [
     nama_room: 'Pengumuman Resmi Pesantren',
     deskripsi: 'Kanal resmi maklumat pimpinan pondok, agenda pesantren, dan informasi akademik.',
     foto_url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=150&auto=format&fit=crop&q=80',
-    created_by: 'USR_ADMIN',
+    created_by: 'USR_ADMIN_IFTAH',
     status_aktif: true,
     membutuhkan_kode: false,
     created_at: new Date(Date.now() - 86400000 * 7).toISOString()
@@ -130,76 +146,28 @@ const INITIAL_ROOMS: Room[] = [
     deskripsi: 'Koordinasi harian pembina asrama, evaluasi ibadah santri, dan disiplin kesantrian.',
     kode_room: 'MUSYRIF26',
     foto_url: 'https://images.unsplash.com/photo-1519452635265-7b1fbfd1e4e0?w=150&auto=format&fit=crop&q=80',
-    created_by: 'USR_ADMIN',
+    created_by: 'USR_ADMIN_IFTAH',
     status_aktif: true,
     membutuhkan_kode: true,
     created_at: new Date(Date.now() - 86400000 * 6).toISOString()
-  },
-  {
-    id_room: 'ROOM_TAHFIZH',
-    nama_room: "Halaqah Tahfizh Al-Qur'an",
-    deskripsi: "Pencatatan setoran hafalan, muraja'ah bersama, dan mutaba'ah ziyadah Al-Qur'an.",
-    kode_room: 'TAHFIZH26',
-    foto_url: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=150&auto=format&fit=crop&q=80',
-    created_by: 'USR_FAUZI',
-    status_aktif: true,
-    membutuhkan_kode: true,
-    created_at: new Date(Date.now() - 86400000 * 5).toISOString()
-  },
-  {
-    id_room: 'ROOM_SARPRAS_TU',
-    nama_room: 'Sarana Prasarana & Tata Usaha',
-    deskripsi: 'Layanan fasilitas gedung, pemeliharaan asrama, logistik, dan administrasi umum santri.',
-    kode_room: 'SARPRAS26',
-    foto_url: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=150&auto=format&fit=crop&q=80',
-    created_by: 'USR_STAFF_TU',
-    status_aktif: true,
-    membutuhkan_kode: true,
-    created_at: new Date(Date.now() - 86400000 * 4).toISOString()
   }
 ];
 
 const INITIAL_MEMBERS: RoomMember[] = [
-  { id_member: 'MBR_001', id_room: 'ROOM_PENGUMUMAN', id_user: 'USR_ADMIN', nama: 'Admin Maisya', username: 'admin', role_nama: 'Super Admin', joined_at: new Date(Date.now() - 86400000).toISOString(), status: 'active' },
-  { id_member: 'MBR_002', id_room: 'ROOM_PENGUMUMAN', id_user: 'USR_FAUZI', nama: 'Ustadz Ahmad Fauzi', username: 'ahmadfauzi', role_nama: 'Musyrif', joined_at: new Date(Date.now() - 86400000).toISOString(), status: 'active' },
-  { id_member: 'MBR_003', id_room: 'ROOM_PENGUMUMAN', id_user: 'USR_STAFF_TU', nama: 'Staff TU Maisya', username: 'stafftu', role_nama: 'Staff', joined_at: new Date(Date.now() - 86400000).toISOString(), status: 'active' },
-  { id_member: 'MBR_004', id_room: 'ROOM_PENGUMUMAN', id_user: 'USR_SANTRI_ZAID', nama: 'Zaid bin Tsabit', username: 'zaid', role_nama: 'Peserta', joined_at: new Date(Date.now() - 86400000).toISOString(), status: 'active' },
-  { id_member: 'MBR_005', id_room: 'ROOM_MUSYRIF', id_user: 'USR_ADMIN', nama: 'Admin Maisya', username: 'admin', role_nama: 'Super Admin', joined_at: new Date(Date.now() - 86400000).toISOString(), status: 'active' },
-  { id_member: 'MBR_006', id_room: 'ROOM_MUSYRIF', id_user: 'USR_FAUZI', nama: 'Ustadz Ahmad Fauzi', username: 'ahmadfauzi', role_nama: 'Musyrif', joined_at: new Date(Date.now() - 86400000).toISOString(), status: 'active' },
+  { id_member: 'MBR_001', id_room: 'ROOM_PENGUMUMAN', id_user: 'USR_ADMIN_IFTAH', nama: 'iftahadmin', username: 'iftahadmin', role_nama: 'Super Admin', joined_at: new Date(Date.now() - 86400000).toISOString(), status: 'active' },
+  { id_member: 'MBR_002', id_room: 'ROOM_MUSYRIF', id_user: 'USR_ADMIN_IFTAH', nama: 'iftahadmin', username: 'iftahadmin', role_nama: 'Super Admin', joined_at: new Date(Date.now() - 86400000).toISOString(), status: 'active' },
 ];
 
 const INITIAL_MESSAGES: Message[] = [
   {
     id_message: 'MSG_001',
     id_room: 'ROOM_PENGUMUMAN',
-    id_user: 'USR_ADMIN',
-    nama_pengirim: 'Admin Maisya',
+    id_user: 'USR_ADMIN_IFTAH',
+    nama_pengirim: 'iftahadmin',
     foto_pengirim: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     message_type: 'text',
-    content: "Assalamu'alaikum Warahmatullahi Wabarakatuh. Ahlan wa Sahlan di Maisya Chat Room Pesantren Imam Syafi'i Brebes. Seluruh ruang koordinasi dan halaqah kini terpusat di sini.",
+    content: "Assalamu'alaikum Warahmatullahi Wabarakatuh. Ahlan wa Sahlan di Maisya Chat Room Pesantren Imam Syafi'i Brebes. Akun Admin resmi: iftahadmin.",
     created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-    status: 'sent'
-  },
-  {
-    id_message: 'MSG_002',
-    id_room: 'ROOM_PENGUMUMAN',
-    id_user: 'USR_FAUZI',
-    nama_pengirim: 'Ustadz Ahmad Fauzi',
-    foto_pengirim: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    message_type: 'text',
-    content: "Wa'alaikumussalam Warahmatullahi Wabarakatuh. Alhamdulillah, sistem chat internal ini sangat memudahkan kami memantau santri secara real-time.",
-    created_at: new Date(Date.now() - 3600000 * 3).toISOString(),
-    status: 'sent'
-  },
-  {
-    id_message: 'MSG_003',
-    id_room: 'ROOM_MUSYRIF',
-    id_user: 'USR_FAUZI',
-    nama_pengirim: 'Ustadz Ahmad Fauzi',
-    foto_pengirim: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    message_type: 'text',
-    content: "Laporan Sholat Subuh berjamaah santri pagi ini alhamdulillah tertib dan lengkap. Kajian kitab ba'da subuh berjalan lancar.",
-    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
     status: 'sent'
   }
 ];
@@ -234,7 +202,7 @@ export class MockSpreadsheetBackend {
   }
 
   static login(nama: string, kodeLogin: string) {
-    const users = getStore<RawUser[]>('tb_users', INITIAL_USERS);
+    const users = getUsersStore();
     const cleanNama = nama.trim().toLowerCase();
     const cleanCode = kodeLogin.trim();
 
@@ -244,7 +212,25 @@ export class MockSpreadsheetBackend {
     );
 
     if (!user) {
-      return { success: false, error: `Pengguna dengan nama "${nama}" tidak ditemukan di tb_users.` };
+      return { 
+        success: false, 
+        error: `Pengguna "${nama}" belum terdaftar. Silakan klik "Daftar Akun Baru".` 
+      };
+    }
+
+    // Cek status persetujuan (approval) oleh admin
+    if (user.approval_status === 'pending') {
+      return { 
+        success: false, 
+        error: 'Pendaftaran akun Anda masih MENUNGGU PERSETUJUAN (Approval) dari Admin (iftahadmin). Silakan hubungi admin untuk aktivasi.' 
+      };
+    }
+
+    if (user.approval_status === 'rejected') {
+      return { 
+        success: false, 
+        error: 'Pendaftaran akun Anda ditolak oleh Admin. Silakan hubungi admin pesantren.' 
+      };
     }
 
     if (!user.status_aktif) {
@@ -252,7 +238,7 @@ export class MockSpreadsheetBackend {
     }
 
     if (user.kode_login !== cleanCode) {
-      return { success: false, error: 'Kode login tidak valid.' };
+      return { success: false, error: 'Password / Kode login tidak valid.' };
     }
 
     const token = `MOCK_SESSION_${user.id_user}_${Date.now()}`;
@@ -266,6 +252,9 @@ export class MockSpreadsheetBackend {
       username: user.username,
       role_id: user.role_id,
       status_aktif: user.status_aktif,
+      approval_status: user.approval_status || 'approved',
+      no_wa: user.no_wa,
+      keterangan: user.keterangan,
       foto_url: user.foto_url,
       created_at: user.created_at
     };
@@ -284,11 +273,11 @@ export class MockSpreadsheetBackend {
     }
     const parts = token.split('_');
     const userId = parts[2] + (parts[3] ? '_' + parts[3] : '');
-    const users = getStore<RawUser[]>('tb_users', INITIAL_USERS);
+    const users = getUsersStore();
     const user = users.find(u => u.id_user === userId || token.includes(u.id_user));
 
-    if (!user || !user.status_aktif) {
-      return { success: false, error: 'Akun tidak aktif' };
+    if (!user || !user.status_aktif || user.approval_status === 'pending' || user.approval_status === 'rejected') {
+      return { success: false, error: 'Akun tidak aktif atau belum disetujui' };
     }
 
     const permissions = this.getEffectivePermissions(user.id_user, user.role_id);
@@ -334,7 +323,7 @@ export class MockSpreadsheetBackend {
     }
 
     const members = getStore<RoomMember[]>('tb_room_members', INITIAL_MEMBERS);
-    const users = getStore<RawUser[]>('tb_users', INITIAL_USERS);
+    const users = getUsersStore();
     const user = users.find(u => u.id_user === userId);
 
     const existingIdx = members.findIndex(m => m.id_room === roomId && m.id_user === userId);
@@ -439,7 +428,7 @@ export class MockSpreadsheetBackend {
 
   static sendMessage(roomId: string, userId: string, content: string, replyToId?: string) {
     const messages = getStore<Message[]>('tb_messages', INITIAL_MESSAGES);
-    const users = getStore<RawUser[]>('tb_users', INITIAL_USERS);
+    const users = getUsersStore();
     const user = users.find(u => u.id_user === userId);
 
     let replyInfo: Message['reply_message'] | undefined;
@@ -476,7 +465,7 @@ export class MockSpreadsheetBackend {
 
   static sendImageMessage(roomId: string, userId: string, base64Data: string, fileName: string, caption?: string) {
     const messages = getStore<Message[]>('tb_messages', INITIAL_MESSAGES);
-    const users = getStore<RawUser[]>('tb_users', INITIAL_USERS);
+    const users = getUsersStore();
     const user = users.find(u => u.id_user === userId);
 
     const fileId = 'DRIVE_' + Math.random().toString(36).substring(2, 10);
@@ -507,7 +496,7 @@ export class MockSpreadsheetBackend {
   static editMessage(messageId: string, userId: string, newContent: string) {
     const messages = getStore<Message[]>('tb_messages', INITIAL_MESSAGES);
     const revisions = getStore<MessageRevision[]>('tb_message_revisions', []);
-    const users = getStore<RawUser[]>('tb_users', INITIAL_USERS);
+    const users = getUsersStore();
     const user = users.find(u => u.id_user === userId);
 
     const targetIdx = messages.findIndex(m => m.id_message === messageId);
@@ -562,7 +551,7 @@ export class MockSpreadsheetBackend {
   // Screen Sharing
   static createScreenShareSession(roomId: string, userId: string) {
     const sessions = getStore<ScreenShareSession[]>('tb_screen_share_sessions', []);
-    const users = getStore<RawUser[]>('tb_users', INITIAL_USERS);
+    const users = getUsersStore();
     const user = users.find(u => u.id_user === userId);
 
     // Tutup sesi aktif lain di room ini
@@ -611,23 +600,104 @@ export class MockSpreadsheetBackend {
     return { success: true, is_active: true, session: active };
   }
 
-  // Admin Dashboard
+  // Admin Dashboard & User Management
   static getUsers() {
-    const users = getStore<RawUser[]>('tb_users', INITIAL_USERS);
+    const users = getUsersStore();
     const safeUsers = users.map(u => ({
       id_user: u.id_user,
       nama: u.nama,
       username: u.username,
       role_id: u.role_id,
       status_aktif: u.status_aktif,
+      approval_status: u.approval_status || (u.status_aktif ? 'approved' : 'pending'),
+      no_wa: u.no_wa,
+      keterangan: u.keterangan,
       foto_url: u.foto_url,
-      created_at: u.created_at
+      created_at: u.created_at,
+      updated_at: u.updated_at
     }));
     return { success: true, users: safeUsers };
   }
 
+  static registerUser(payload: {
+    nama: string;
+    username: string;
+    kodeLogin: string;
+    roleId?: any;
+    noWa?: string;
+    keterangan?: string;
+  }) {
+    const users = getUsersStore();
+    const cleanUsername = payload.username.trim().toLowerCase();
+    const cleanNama = payload.nama.trim();
+
+    if (!cleanNama || !cleanUsername || !payload.kodeLogin.trim()) {
+      return { success: false, error: 'Nama, Username, dan Password wajib diisi.' };
+    }
+
+    if (users.some(u => u.username.toLowerCase() === cleanUsername)) {
+      return { success: false, error: `Username "${payload.username}" sudah digunakan. Silakan pilih username lain.` };
+    }
+
+    if (users.some(u => u.nama.toLowerCase() === cleanNama.toLowerCase())) {
+      return { success: false, error: `Nama "${payload.nama}" sudah terdaftar.` };
+    }
+
+    const newUser: RawUser = {
+      id_user: 'USR_' + Math.random().toString(36).substring(2, 9).toUpperCase(),
+      nama: cleanNama,
+      kode_login: payload.kodeLogin.trim(),
+      username: cleanUsername,
+      role_id: payload.roleId || 'ROLE_PESERTA',
+      status_aktif: false, // Menunggu persetujuan admin
+      approval_status: 'pending',
+      no_wa: payload.noWa?.trim() || '',
+      keterangan: payload.keterangan?.trim() || '',
+      foto_url: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanNama)}`,
+      created_at: new Date().toISOString()
+    };
+
+    users.push(newUser);
+    setStore('tb_users', users);
+    this.logActivity('SYSTEM', 'USER_REGISTER', `Pendaftaran user baru: ${cleanNama} (@${cleanUsername})`);
+
+    return {
+      success: true,
+      message: 'Pendaftaran berhasil dikirim! Akun Anda sedang menunggu persetujuan (approval) dari Admin (iftahadmin).'
+    };
+  }
+
+  static approveUser(userId: string, roleId?: any) {
+    const users = getUsersStore();
+    const target = users.find(u => u.id_user === userId);
+    if (!target) return { success: false, error: 'User tidak ditemukan' };
+
+    target.approval_status = 'approved';
+    target.status_aktif = true;
+    if (roleId) target.role_id = roleId;
+    target.updated_at = new Date().toISOString();
+
+    setStore('tb_users', users);
+    this.logActivity('USR_ADMIN_IFTAH', 'USER_APPROVE', `Menyetujui akun ${target.nama} (@${target.username})`);
+    return { success: true, message: `Akun ${target.nama} berhasil disetujui & diaktifkan.` };
+  }
+
+  static rejectUser(userId: string, reason?: string) {
+    const users = getUsersStore();
+    const target = users.find(u => u.id_user === userId);
+    if (!target) return { success: false, error: 'User tidak ditemukan' };
+
+    target.approval_status = 'rejected';
+    target.status_aktif = false;
+    target.updated_at = new Date().toISOString();
+
+    setStore('tb_users', users);
+    this.logActivity('USR_ADMIN_IFTAH', 'USER_REJECT', `Menolak pendaftaran ${target.nama} (@${target.username})`);
+    return { success: true, message: `Pendaftaran ${target.nama} telah ditolak.` };
+  }
+
   static createUser(nama: string, kodeLogin: string, username: string, roleId: any, fotoUrl: string) {
-    const users = getStore<RawUser[]>('tb_users', INITIAL_USERS);
+    const users = getUsersStore();
     const newUser: RawUser = {
       id_user: 'USR_' + Math.random().toString(36).substring(2, 8).toUpperCase(),
       nama: nama.trim(),
@@ -635,7 +705,8 @@ export class MockSpreadsheetBackend {
       username: username.trim().toLowerCase(),
       role_id: roleId,
       status_aktif: true,
-      foto_url: fotoUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+      approval_status: 'approved',
+      foto_url: fotoUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(nama)}`,
       created_at: new Date().toISOString()
     };
     users.push(newUser);
@@ -644,10 +715,13 @@ export class MockSpreadsheetBackend {
   }
 
   static toggleUserStatus(userId: string) {
-    const users = getStore<RawUser[]>('tb_users', INITIAL_USERS);
+    const users = getUsersStore();
     const target = users.find(u => u.id_user === userId);
     if (!target) return { success: false, error: 'User tidak ditemukan' };
     target.status_aktif = !target.status_aktif;
+    if (target.status_aktif && target.approval_status !== 'approved') {
+      target.approval_status = 'approved';
+    }
     setStore('tb_users', users);
     return { success: true, status_aktif: target.status_aktif };
   }
@@ -661,7 +735,7 @@ export class MockSpreadsheetBackend {
   }
 
   static getDashboardStats(): { success: boolean; stats: DashboardStats } {
-    const users = getStore<RawUser[]>('tb_users', INITIAL_USERS);
+    const users = getUsersStore();
     const rooms = getStore<Room[]>('tb_rooms', INITIAL_ROOMS);
     const messages = getStore<Message[]>('tb_messages', INITIAL_MESSAGES);
 
@@ -669,7 +743,7 @@ export class MockSpreadsheetBackend {
       success: true,
       stats: {
         totalUsers: users.length,
-        activeUsers: users.filter(u => u.status_aktif).length,
+        activeUsers: users.filter(u => u.status_aktif && u.approval_status === 'approved').length,
         totalRooms: rooms.length,
         totalMessages: messages.length,
         totalImages: messages.filter(m => m.message_type === 'image').length
@@ -679,7 +753,7 @@ export class MockSpreadsheetBackend {
 
   static logActivity(userId: string, activity: string, roomId?: string) {
     const logs = getStore<ActivityLog[]>('tb_user_activity_logs', []);
-    const users = getStore<RawUser[]>('tb_users', INITIAL_USERS);
+    const users = getUsersStore();
     const user = users.find(u => u.id_user === userId);
 
     logs.unshift({

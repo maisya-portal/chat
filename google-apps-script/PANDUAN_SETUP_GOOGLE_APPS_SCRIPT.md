@@ -76,11 +76,12 @@ Dokumen ini memandu Anda langkah demi langkah dalam menghubungkan aplikasi **Mai
 
 ---
 
-## Akun Bawaan untuk Login Awal
+## Akun Admin Utama & Sistem Pendaftaran User
 
-| Nama Pengguna | Kode Login | Role | Keterangan |
+| Nama Pengguna / Username | Password / Kode Login | Role | Keterangan |
 | :--- | :--- | :--- | :--- |
-| **Admin Maisya** | `ADMIN2026` | Super Admin | Akses Dashboard Admin & semua room |
-| **Ustadz Ahmad Fauzi** | `ISB2026` | Musyrif | Pemateri, Screen Sharing, Room Musyrif |
-| **Staff TU Maisya** | `TU2026` | Staff TU | Room Sarpras & Tata Usaha |
-| **Zaid bin Tsabit** | `SANTRI2026` | Peserta / Santri | Peserta Umum & Halaqah |
+| **iftahadmin** | `iftah010387` | Super Admin | Akses Kendali Penuh, Dashboard Admin, & Persetujuan User |
+
+> **Catatan Sistem Registrasi & Izin Admin:**
+> Seluruh pengguna baru dapat mendaftar melalui form **Daftar Akun Baru**. Setelah mendaftar, akun berstatus *Pending (Menunggu Persetujuan)*. Admin (`iftahadmin`) akan memverifikasi dan memberikan izin (*Approval*) melalui **Panel Dashboard Admin > Tab Persetujuan User** sebelum akun tersebut dapat login.
+

@@ -198,46 +198,13 @@ function seedInitialData(ss) {
   if (userSheet.getLastRow() <= 1) {
     const users = [
       [
-        "USR_ADMIN",
-        "Admin Maisya",
-        hashPassword("ADMIN2026"),
-        "admin",
+        "USR_ADMIN_IFTAH",
+        "iftahadmin",
+        hashPassword("iftah010387"),
+        "iftahadmin",
         "ROLE_SUPERADMIN",
         true,
         "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-        now,
-        now
-      ],
-      [
-        "USR_FAUZI",
-        "Ustadz Ahmad Fauzi",
-        hashPassword("ISB2026"),
-        "ahmadfauzi",
-        "ROLE_MUSYRIF",
-        true,
-        "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-        now,
-        now
-      ],
-      [
-        "USR_STAFF_TU",
-        "Staff TU Maisya",
-        hashPassword("TU2026"),
-        "stafftu",
-        "ROLE_STAFF",
-        true,
-        "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
-        now,
-        now
-      ],
-      [
-        "USR_SANTRI_ZAID",
-        "Zaid bin Tsabit",
-        hashPassword("SANTRI2026"),
-        "zaid",
-        "ROLE_PESERTA",
-        true,
-        "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
         now,
         now
       ]

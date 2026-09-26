@@ -9,6 +9,7 @@ interface AuthContextType {
   permissions: PermissionMap;
   isLoading: boolean;
   login: (nama: string, kodeLogin: string) => Promise<{ success: boolean; error?: string }>;
+  register: (data: { nama: string; username: string; kodeLogin: string; roleId?: string; noWa?: string; keterangan?: string }) => Promise<{ success: boolean; message?: string; error?: string }>;
   logout: () => void;
   can: (permission: PermissionKey | string) => boolean;
   isSuperAdmin: boolean;
@@ -75,6 +76,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const register = async (data: { nama: string; username: string; kodeLogin: string; roleId?: string; noWa?: string; keterangan?: string }) => {
+    setIsLoading(true);
+    try {
+      const res = await GasClient.registerUser(data);
+      if (res.success) {
+        return { success: true, message: res.message };
+      } else {
+        return { success: false, error: res.error || 'Pendaftaran gagal.' };
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Terjadi kesalahan saat pendaftaran.' };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = () => {
     if (token) {
       GasClient.logout(token);
@@ -113,6 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         permissions,
         isLoading,
         login,
+        register,
         logout,
         can,
         isSuperAdmin,

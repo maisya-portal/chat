@@ -23,7 +23,13 @@ import {
   Image,
   Layers,
   Key,
-  Radio
+  Radio,
+  UserCheck,
+  Clock,
+  Phone,
+  Check,
+  X,
+  AlertCircle
 } from 'lucide-react';
 
 interface AdminDashboardModalProps {
@@ -34,7 +40,7 @@ interface AdminDashboardModalProps {
 export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'stats' | 'users' | 'rooms' | 'roles' | 'logs' | 'conn'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'approvals' | 'users' | 'rooms' | 'roles' | 'logs' | 'conn'>('stats');
 
   // State data
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -43,6 +49,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
   const [roleList, setRoleList] = useState<Role[]>([]);
   const [permissionList, setPermissionList] = useState<Permission[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+
+  // Filter pending users for approval
+  const pendingUsers = userList.filter(u => u.approval_status === 'pending');
 
   // Create User State
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
@@ -64,7 +73,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
       const [st, us, rm, ro, pm, lg] = await Promise.all([
         GasClient.getDashboardStats(),
         GasClient.getUsers(),
-        GasClient.getRooms(user?.id_user || 'USR_ADMIN'),
+        GasClient.getRooms(user?.id_user || 'USR_ADMIN_IFTAH'),
         GasClient.getRoles(),
         GasClient.getPermissions(),
         GasClient.getActivityLogs(40)
@@ -88,6 +97,20 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
       loadData();
     }
   }, [isOpen]);
+
+  const handleApprove = async (userId: string, roleId?: string) => {
+    const res = await GasClient.approveUser(userId, roleId);
+    if (res.success) {
+      loadData();
+    }
+  };
+
+  const handleReject = async (userId: string) => {
+    const res = await GasClient.rejectUser(userId);
+    if (res.success) {
+      loadData();
+    }
+  };
 
   const handleToggleStatus = async (userId: string) => {
     const res = await GasClient.toggleUserStatus(userId);
@@ -152,6 +175,23 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
         </button>
 
         <button
+          onClick={() => setActiveTab('approvals')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all shrink-0 ${
+            activeTab === 'approvals'
+              ? 'bg-amber-600 text-white shadow-md'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          <UserCheck className="w-4 h-4 text-amber-300" />
+          <span>Persetujuan User</span>
+          {pendingUsers.length > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold animate-pulse">
+              {pendingUsers.length}
+            </span>
+          )}
+        </button>
+
+        <button
           onClick={() => setActiveTab('users')}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all shrink-0 ${
             activeTab === 'users'
@@ -160,7 +200,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
           }`}
         >
           <Users className="w-4 h-4" />
-          <span>Manajemen Pengguna</span>
+          <span>Semua Pengguna</span>
         </button>
 
         <button
@@ -289,6 +329,108 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
             </div>
           )}
 
+          {/* TAB: PERSETUJUAN PENDAFTARAN (APPROVALS) */}
+          {activeTab === 'approvals' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
+                <div>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <UserCheck className="w-4 h-4 text-amber-400" />
+                    <span>Persetujuan Pendaftaran Akun ({pendingUsers.length})</span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    User yang mendaftar online harus disetujui oleh Admin (<span className="text-emerald-400 font-mono">iftahadmin</span>) sebelum dapat login ke ruang chat.
+                  </p>
+                </div>
+                <button
+                  onClick={loadData}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs flex items-center gap-1.5 transition-colors"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Segarkan</span>
+                </button>
+              </div>
+
+              {pendingUsers.length === 0 ? (
+                <div className="py-12 text-center rounded-2xl bg-slate-800/20 border border-slate-700/40 space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center mx-auto">
+                    <CheckCircle className="w-6 h-6" />
+                  </div>
+                  <h5 className="text-sm font-bold text-white">Semua Pendaftaran Telah Diproses</h5>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Tidak ada antrian pendaftaran pengguna baru yang menunggu persetujuan saat ini.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingUsers.map((u) => (
+                    <div
+                      key={u.id_user}
+                      className="p-4 rounded-2xl bg-slate-800/60 border border-amber-500/30 hover:border-amber-500/50 transition-all space-y-3"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar src={u.foto_url} name={u.nama} size="md" isOnline={false} />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-bold text-white">{u.nama}</p>
+                              <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30 flex items-center gap-1">
+                                <Clock className="w-2.5 h-2.5" />
+                                <span>Menunggu Izin</span>
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
+                              <span>@{u.username}</span>
+                              <span>•</span>
+                              <span>Peran diajukan:</span>
+                              <Badge roleId={u.role_id} size="sm" />
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-2 self-end sm:self-center">
+                          <button
+                            onClick={() => handleReject(u.id_user)}
+                            className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            <span>Tolak</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleApprove(u.id_user, u.role_id)}
+                            className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-950 transition-all hover:scale-[1.02] cursor-pointer"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Setujui & Beri Izin</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Additional Info */}
+                      {(u.no_wa || u.keterangan) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-700/50 text-xs text-slate-300">
+                          {u.no_wa && (
+                            <div className="flex items-center gap-1.5 text-slate-400">
+                              <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>WhatsApp: <strong className="text-slate-200">{u.no_wa}</strong></span>
+                            </div>
+                          )}
+                          {u.keterangan && (
+                            <div className="text-slate-400">
+                              <span>Keterangan: <strong className="text-slate-200">{u.keterangan}</strong></span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* TAB 2: MANAJEMEN PENGGUNA */}
           {activeTab === 'users' && (
             <div className="space-y-4">
@@ -375,12 +517,33 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                         <div className="flex items-center gap-2">
                           <p className="text-xs font-bold text-white">{u.nama}</p>
                           <Badge roleId={u.role_id} size="sm" />
+                          {u.approval_status === 'pending' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Menunggu Izin
+                            </span>
+                          )}
+                          {u.approval_status === 'rejected' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                              Ditolak
+                            </span>
+                          )}
                         </div>
                         <p className="text-[11px] text-slate-400">@{u.username} • ID: {u.id_user}</p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {u.approval_status === 'pending' && (
+                        <button
+                          onClick={() => handleApprove(u.id_user, u.role_id)}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm cursor-pointer"
+                          title="Beri Izin / Setujui"
+                        >
+                          <Check className="w-3 h-3" />
+                          <span>Setujui</span>
+                        </button>
+                      )}
+
                       <button
                         onClick={() => handleToggleStatus(u.id_user)}
                         className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors ${

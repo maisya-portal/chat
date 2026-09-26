@@ -100,6 +100,12 @@ export class GasClient {
         return MockSpreadsheetBackend.getActiveScreenShareSession(p.roomId);
       case 'getUsers':
         return MockSpreadsheetBackend.getUsers();
+      case 'registerUser':
+        return MockSpreadsheetBackend.registerUser(p);
+      case 'approveUser':
+        return MockSpreadsheetBackend.approveUser(p.userId, p.roleId);
+      case 'rejectUser':
+        return MockSpreadsheetBackend.rejectUser(p.userId, p.reason);
       case 'createUser':
         return MockSpreadsheetBackend.createUser(p.nama, p.kodeLogin, p.username, p.roleId, p.fotoUrl);
       case 'toggleUserStatus':
@@ -197,6 +203,18 @@ export class GasClient {
 
   static async getUsers(token?: string) {
     return this.request('getUsers', { token }, 'GET');
+  }
+
+  static async registerUser(data: { nama: string; username: string; kodeLogin: string; roleId?: string; noWa?: string; keterangan?: string }) {
+    return this.request('registerUser', data);
+  }
+
+  static async approveUser(userId: string, roleId?: string, token?: string) {
+    return this.request('approveUser', { userId, roleId, token });
+  }
+
+  static async rejectUser(userId: string, reason?: string, token?: string) {
+    return this.request('rejectUser', { userId, reason, token });
   }
 
   static async createUser(data: { nama: string; kodeLogin: string; username: string; roleId: string; fotoUrl?: string; token?: string }) {
