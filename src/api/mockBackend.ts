@@ -887,6 +887,80 @@ export class MockSpreadsheetBackend {
     return { success: true, message: 'Pengguna baru berhasil ditambahkan' };
   }
 
+  static updateUser(userId: string, data: {
+    nama?: string;
+    username?: string;
+    kodeLogin?: string;
+    roleId?: any;
+    statusAktif?: boolean;
+    noWa?: string;
+    keterangan?: string;
+    fotoUrl?: string;
+  }) {
+    const users = getUsersStore();
+    const target = users.find(u => u.id_user === userId);
+    if (!target) return { success: false, error: 'User tidak ditemukan' };
+
+    if (data.username && data.username.trim().toLowerCase() !== target.username.toLowerCase()) {
+      const cleanUsername = data.username.trim().toLowerCase();
+      if (users.some(u => u.id_user !== userId && u.username.toLowerCase() === cleanUsername)) {
+        return { success: false, error: `Username "${data.username}" sudah digunakan pengguna lain.` };
+      }
+      target.username = cleanUsername;
+    }
+
+    if (data.nama && data.nama.trim()) {
+      target.nama = data.nama.trim();
+    }
+    if (data.kodeLogin && data.kodeLogin.trim()) {
+      target.kode_login = data.kodeLogin.trim();
+    }
+    if (data.roleId) {
+      target.role_id = data.roleId;
+    }
+    if (typeof data.statusAktif === 'boolean') {
+      target.status_aktif = data.statusAktif;
+      if (data.statusAktif && target.approval_status !== 'approved') {
+        target.approval_status = 'approved';
+      }
+    }
+    if (typeof data.noWa === 'string') {
+      target.no_wa = data.noWa.trim();
+    }
+    if (typeof data.keterangan === 'string') {
+      target.keterangan = data.keterangan.trim();
+    }
+    if (data.fotoUrl !== undefined) {
+      target.foto_url = data.fotoUrl.trim() || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(target.nama)}`;
+    }
+    target.updated_at = new Date().toISOString();
+
+    setStore('tb_users', users);
+    this.logActivity('USR_ADMIN_IFTAH', 'USER_UPDATE', `Memperbarui data akun pengguna: ${target.nama} (@${target.username})`);
+    return { success: true, message: `Data pengguna "${target.nama}" berhasil diperbarui!` };
+  }
+
+  static deleteUser(userId: string) {
+    if (userId === 'USR_ADMIN_IFTAH' || userId.toLowerCase() === 'iftahadmin') {
+      return { success: false, error: 'Akun Super Admin Utama (iftahadmin) tidak dapat dihapus demi keamanan sistem.' };
+    }
+
+    let users = getUsersStore();
+    const target = users.find(u => u.id_user === userId);
+    if (!target) return { success: false, error: 'User tidak ditemukan' };
+
+    users = users.filter(u => u.id_user !== userId);
+    setStore('tb_users', users);
+
+    // Hapus juga keanggotaan room pengguna ini
+    const members = getStore<RoomMember[]>('tb_members', []);
+    const remainingMembers = members.filter(m => m.id_user !== userId);
+    setStore('tb_members', remainingMembers);
+
+    this.logActivity('USR_ADMIN_IFTAH', 'USER_DELETE', `Menghapus akun pengguna: ${target.nama} (@${target.username})`);
+    return { success: true, message: `Pengguna "${target.nama}" berhasil dihapus secara permanen.` };
+  }
+
   static toggleUserStatus(userId: string) {
     const users = getUsersStore();
     const target = users.find(u => u.id_user === userId);

@@ -62,13 +62,19 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
   // Filter pending users for approval
   const pendingUsers = userList.filter(u => u.approval_status === 'pending');
 
-  // Create User State
-  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
-  const [newNama, setNewNama] = useState('');
-  const [newKode, setNewKode] = useState('');
-  const [newUsername, setNewUsername] = useState('');
-  const [newRole, setNewRole] = useState('ROLE_PESERTA');
-  const [newFoto, setNewFoto] = useState('');
+  // User Management State (Create & Edit)
+  const [isUserFormOpen, setIsUserFormOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [userNama, setUserNama] = useState('');
+  const [userKode, setUserKode] = useState('');
+  const [userUsername, setUserUsername] = useState('');
+  const [userRole, setUserRole] = useState('ROLE_PESERTA');
+  const [userStatusAktif, setUserStatusAktif] = useState(true);
+  const [userNoWa, setUserNoWa] = useState('');
+  const [userKeterangan, setUserKeterangan] = useState('');
+  const [userFoto, setUserFoto] = useState('');
+  const [userActionLoading, setUserActionLoading] = useState(false);
+  const [userFeedback, setUserFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Room Management State
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false);
@@ -164,25 +170,114 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
     await loadData();
   };
 
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newNama || !newKode || !newUsername) return;
+  const startCreateUser = () => {
+    setEditingUser(null);
+    setUserNama('');
+    setUserKode('');
+    setUserUsername('');
+    setUserRole('ROLE_PESERTA');
+    setUserStatusAktif(true);
+    setUserNoWa('');
+    setUserKeterangan('');
+    setUserFoto('');
+    setUserFeedback(null);
+    setIsUserFormOpen(true);
+  };
 
-    const res = await GasClient.createUser({
-      nama: newNama,
-      kodeLogin: newKode,
-      username: newUsername,
-      roleId: newRole,
-      fotoUrl: newFoto || undefined
-    });
+  const startEditUser = (u: User) => {
+    setEditingUser(u);
+    setUserNama(u.nama);
+    setUserKode(''); // opsional: jika dikosongkan tidak mengubah password lama
+    setUserUsername(u.username);
+    setUserRole(u.role_id);
+    setUserStatusAktif(u.status_aktif);
+    setUserNoWa(u.no_wa || '');
+    setUserKeterangan(u.keterangan || '');
+    setUserFoto(u.foto_url || '');
+    setUserFeedback(null);
+    setIsUserFormOpen(true);
+  };
+
+  const cancelUserForm = () => {
+    setEditingUser(null);
+    setIsUserFormOpen(false);
+    setUserNama('');
+    setUserKode('');
+    setUserUsername('');
+    setUserFoto('');
+    setUserFeedback(null);
+  };
+
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userNama.trim() || !userUsername.trim()) return;
+
+    setUserActionLoading(true);
+    setUserFeedback(null);
+
+    if (editingUser) {
+      const res = await GasClient.updateUser(editingUser.id_user, {
+        nama: userNama.trim(),
+        username: userUsername.trim(),
+        kodeLogin: userKode.trim() || undefined,
+        roleId: userRole,
+        statusAktif: userStatusAktif,
+        noWa: userNoWa.trim() || undefined,
+        keterangan: userKeterangan.trim() || undefined,
+        fotoUrl: userFoto.trim() || undefined
+      });
+      setUserActionLoading(false);
+      if (res.success) {
+        setUserFeedback({ type: 'success', message: res.message || 'Data pengguna berhasil diperbarui!' });
+        cancelUserForm();
+        await loadData();
+      } else {
+        setUserFeedback({ type: 'error', message: res.error || 'Gagal memperbarui pengguna' });
+      }
+    } else {
+      if (!userKode.trim()) {
+        setUserActionLoading(false);
+        setUserFeedback({ type: 'error', message: 'Password / Kode Login wajib diisi untuk pengguna baru' });
+        return;
+      }
+      const res = await GasClient.createUser({
+        nama: userNama.trim(),
+        kodeLogin: userKode.trim(),
+        username: userUsername.trim(),
+        roleId: userRole,
+        fotoUrl: userFoto.trim() || undefined
+      });
+      setUserActionLoading(false);
+      if (res.success) {
+        setUserFeedback({ type: 'success', message: res.message || 'Pengguna baru berhasil ditambahkan!' });
+        cancelUserForm();
+        await loadData();
+      } else {
+        setUserFeedback({ type: 'error', message: res.error || 'Gagal menambahkan pengguna' });
+      }
+    }
+  };
+
+  const handleDeleteUser = async (u: User) => {
+    if (u.id_user === 'USR_ADMIN_IFTAH' || u.username.toLowerCase() === 'iftahadmin') {
+      alert('Akun Super Admin Utama (iftahadmin) dilindungi dan tidak dapat dihapus demi keamanan sistem.');
+      return;
+    }
+
+    if (!window.confirm(`Hapus permanen akun pengguna "${u.nama}" (@${u.username})?\n\nPengguna ini tidak akan dapat login lagi dan semua akses keanggotaan room akan dicabut.`)) {
+      return;
+    }
+
+    setUserActionLoading(true);
+    setUserFeedback(null);
+    const res = await GasClient.deleteUser(u.id_user);
+    setUserActionLoading(false);
 
     if (res.success) {
-      setIsAddUserOpen(false);
-      setNewNama('');
-      setNewKode('');
-      setNewUsername('');
-      setNewFoto('');
-      loadData();
+      setUserFeedback({ type: 'success', message: res.message || `Pengguna "${u.nama}" berhasil dihapus!` });
+      await loadData();
+    } else {
+      setUserFeedback({ type: 'error', message: res.error || 'Gagal menghapus pengguna' });
     }
   };
 
@@ -711,131 +806,341 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
           {/* TAB 2: MANAJEMEN PENGGUNA */}
           {activeTab === 'users' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  Daftar Pengguna ({userList.length})
-                </h4>
-                <button
-                  onClick={() => setIsAddUserOpen(true)}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-md shadow-emerald-950"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>Tambah Pengguna</span>
-                </button>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-700/50">
+                <div>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Users className="w-4 h-4 text-emerald-400" />
+                    <span>Daftar Pengguna ({userList.length})</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Kelola data pengguna, perbarui akun, ubah role, atur status aktif, atau hapus akun pengguna.
+                  </p>
+                </div>
+                {!isUserFormOpen && (
+                  <button
+                    onClick={startCreateUser}
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-md shadow-emerald-950 cursor-pointer self-start sm:self-auto"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>+ Tambah Pengguna</span>
+                  </button>
+                )}
               </div>
 
-              {isAddUserOpen && (
-                <form onSubmit={handleCreateUser} className="p-4 rounded-2xl bg-slate-800/80 border border-emerald-500/40 space-y-3 animate-fade-in">
-                  <h5 className="text-xs font-bold text-emerald-400">Tambah Akun Baru</h5>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      placeholder="Nama Lengkap *"
-                      value={newNama}
-                      onChange={(e) => setNewNama(e.target.value)}
-                      required
-                      className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Kode Login *"
-                      value={newKode}
-                      onChange={(e) => setNewKode(e.target.value)}
-                      required
-                      className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs font-mono uppercase"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Username *"
-                      value={newUsername}
-                      onChange={(e) => setNewUsername(e.target.value)}
-                      required
-                      className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs"
-                    />
-                    <select
-                      value={newRole}
-                      onChange={(e) => setNewRole(e.target.value)}
-                      className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs"
-                    >
-                      <option value="ROLE_SUPERADMIN">Super Admin</option>
-                      <option value="ROLE_ADMIN">Admin</option>
-                      <option value="ROLE_MUSYRIF">Musyrif / Asatidzah</option>
-                      <option value="ROLE_STAFF">Staff TU / Sarpras</option>
-                      <option value="ROLE_PESERTA">Peserta / Santri</option>
-                    </select>
+              {/* Feedback Alert Box */}
+              {userFeedback && (
+                <div
+                  className={`p-3 rounded-xl border text-xs flex items-center justify-between animate-fade-in ${
+                    userFeedback.type === 'success'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                      : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {userFeedback.type === 'success' ? (
+                      <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    )}
+                    <span>{userFeedback.message}</span>
                   </div>
-                  <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setUserFeedback(null)}
+                    className="text-slate-400 hover:text-white text-xs ml-2 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Form Tambah / Edit Pengguna */}
+              {isUserFormOpen && (
+                <form
+                  onSubmit={handleSaveUser}
+                  className="p-5 rounded-2xl bg-slate-800/90 border border-emerald-500/50 shadow-xl space-y-4 animate-fade-in"
+                >
+                  <div className="flex items-center justify-between border-b border-slate-700/60 pb-2.5">
+                    <h5 className="text-sm font-bold text-white flex items-center gap-2">
+                      {editingUser ? (
+                        <>
+                          <Edit3 className="w-4 h-4 text-emerald-400" />
+                          <span>Edit Pengguna: <strong className="text-emerald-300">{editingUser.nama}</strong></span>
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="w-4 h-4 text-emerald-400" />
+                          <span>Tambah Pengguna Baru</span>
+                        </>
+                      )}
+                    </h5>
                     <button
                       type="button"
-                      onClick={() => setIsAddUserOpen(false)}
-                      className="px-3 py-1.5 text-xs text-slate-400 hover:text-white rounded-lg hover:bg-slate-700"
+                      onClick={cancelUserForm}
+                      className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-700/60 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Nama Lengkap <span className="text-rose-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: Zaid bin Haritsah"
+                        value={userNama}
+                        onChange={(e) => setUserNama(e.target.value)}
+                        required
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Username <span className="text-rose-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: zaid_santri"
+                        value={userUsername}
+                        onChange={(e) => setUserUsername(e.target.value)}
+                        required
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        {editingUser ? 'Password / Kode Login Baru' : 'Password / Kode Login *'}
+                      </label>
+                      <input
+                        type="text"
+                        placeholder={editingUser ? 'Kosongkan jika tidak ingin mengubah password' : 'Masukkan password login pengguna'}
+                        value={userKode}
+                        onChange={(e) => setUserKode(e.target.value)}
+                        required={!editingUser}
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs font-mono focus:outline-none focus:border-emerald-500 placeholder-slate-500"
+                      />
+                      {editingUser && (
+                        <p className="text-[10px] text-slate-400 mt-0.5">Biarkan kosong jika tetap menggunakan password lama.</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Peran (Role) Akses <span className="text-rose-400">*</span>
+                      </label>
+                      <select
+                        value={userRole}
+                        onChange={(e) => setUserRole(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="ROLE_SUPERADMIN">Super Admin (Akses Penuh)</option>
+                        <option value="ROLE_ADMIN">Admin (Pengelola)</option>
+                        <option value="ROLE_MUSYRIF">Musyrif / Asatidzah</option>
+                        <option value="ROLE_STAFF">Staff TU / Sarpras</option>
+                        <option value="ROLE_PESERTA">Peserta / Santri</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Status Akun
+                      </label>
+                      <select
+                        value={userStatusAktif ? 'aktif' : 'nonaktif'}
+                        onChange={(e) => setUserStatusAktif(e.target.value === 'aktif')}
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="aktif">Aktif (Dapat Login)</option>
+                        <option value="nonaktif">Nonaktif (Diblokir)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Nomor WhatsApp (Opsional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: 081234567890"
+                        value={userNoWa}
+                        onChange={(e) => setUserNoWa(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Keterangan / Catatan Tambahan (Opsional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: Santri Tahfidz Angkatan 2026 / Pembina Kamar A"
+                        value={userKeterangan}
+                        onChange={(e) => setUserKeterangan(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-700/60">
+                    <button
+                      type="button"
+                      onClick={cancelUserForm}
+                      className="px-3.5 py-2 text-xs text-slate-400 hover:text-white rounded-xl hover:bg-slate-700/60 transition-colors cursor-pointer"
                     >
                       Batal
                     </button>
                     <button
                       type="submit"
-                      className="px-4 py-1.5 text-xs font-semibold text-white rounded-lg bg-emerald-600 hover:bg-emerald-500"
+                      disabled={userActionLoading}
+                      className="px-5 py-2 text-xs font-bold text-white rounded-xl bg-emerald-600 hover:bg-emerald-500 shadow-md shadow-emerald-950 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
                     >
-                      Simpan ke Spreadsheet
+                      {userActionLoading ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Menyimpan...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>{editingUser ? 'Perbarui Pengguna' : 'Simpan Pengguna Baru'}</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
               )}
 
-              <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
-                {userList.map((u) => (
-                  <div
-                    key={u.id_user}
-                    className="flex items-center justify-between p-3 rounded-xl bg-slate-800/40 border border-slate-700/50 hover:bg-slate-800/80 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar src={u.foto_url} name={u.nama} size="sm" isOnline={u.status_aktif} />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-xs font-bold text-white">{u.nama}</p>
-                          <Badge roleId={u.role_id} size="sm" />
-                          {u.approval_status === 'pending' && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                              Menunggu Izin
-                            </span>
-                          )}
-                          {u.approval_status === 'rejected' && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                              Ditolak
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-slate-400">@{u.username} • ID: {u.id_user}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {u.approval_status === 'pending' && (
-                        <button
-                          onClick={() => handleApprove(u.id_user, u.role_id)}
-                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm cursor-pointer"
-                          title="Beri Izin / Setujui"
-                        >
-                          <Check className="w-3 h-3" />
-                          <span>Setujui</span>
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => handleToggleStatus(u.id_user)}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors ${
-                          u.status_aktif
-                            ? 'bg-emerald-500/10 text-emerald-400 hover:bg-rose-500/20 hover:text-rose-400'
-                            : 'bg-rose-500/10 text-rose-400 hover:bg-emerald-500/20 hover:text-emerald-400'
-                        }`}
-                        title="Klik untuk mengubah status"
-                      >
-                        {u.status_aktif ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                        <span>{u.status_aktif ? 'Aktif' : 'Nonaktif'}</span>
-                      </button>
-                    </div>
+              {/* Daftar Pengguna Stream */}
+              <div className="space-y-2.5 max-h-[480px] overflow-y-auto custom-scrollbar pr-1">
+                {userList.length === 0 ? (
+                  <div className="py-12 text-center text-slate-500 text-xs rounded-2xl bg-slate-800/20 border border-slate-700/40">
+                    Belum ada pengguna terdaftar.
                   </div>
-                ))}
+                ) : (
+                  userList.map((u) => {
+                    const isMainAdmin = u.id_user === 'USR_ADMIN_IFTAH' || u.username.toLowerCase() === 'iftahadmin';
+                    return (
+                      <div
+                        key={u.id_user}
+                        className="p-3.5 rounded-2xl bg-slate-800/40 border border-slate-700/50 hover:bg-slate-800/70 hover:border-slate-600/60 transition-all space-y-2 group"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          {/* Info User */}
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Avatar src={u.foto_url} name={u.nama} size="md" isOnline={u.status_aktif} />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-xs font-bold text-white truncate">{u.nama}</p>
+                                <Badge roleId={u.role_id} size="sm" />
+                                {u.approval_status === 'pending' && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold flex items-center gap-1">
+                                    <Clock className="w-2.5 h-2.5" />
+                                    <span>Menunggu Izin</span>
+                                  </span>
+                                )}
+                                {u.approval_status === 'rejected' && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-semibold">
+                                    Ditolak
+                                  </span>
+                                )}
+                                {isMainAdmin && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 font-semibold">
+                                    Akun Utama
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                <span className="font-mono text-emerald-400/90">@{u.username}</span>
+                                <span>•</span>
+                                <span className="text-slate-500 text-[10px]">ID: {u.id_user}</span>
+                                {u.no_wa && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-slate-300 flex items-center gap-1">
+                                      <Phone className="w-2.5 h-2.5 text-emerald-400" />
+                                      {u.no_wa}
+                                    </span>
+                                  </>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Tombol Aksi: Setujui, Toggle Status, Edit, Hapus */}
+                          <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                            {u.approval_status === 'pending' && (
+                              <button
+                                onClick={() => handleApprove(u.id_user, u.role_id)}
+                                className="px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm cursor-pointer transition-all hover:scale-[1.02]"
+                                title="Setujui pendaftaran akun ini"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Setujui</span>
+                              </button>
+                            )}
+
+                            {/* Tombol Toggle Status Aktif */}
+                            <button
+                              onClick={() => handleToggleStatus(u.id_user)}
+                              disabled={isMainAdmin}
+                              className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all ${
+                                isMainAdmin
+                                  ? 'bg-emerald-500/10 text-emerald-400/60 cursor-not-allowed'
+                                  : u.status_aktif
+                                  ? 'bg-emerald-500/10 text-emerald-400 hover:bg-rose-500/20 hover:text-rose-400 cursor-pointer'
+                                  : 'bg-rose-500/10 text-rose-400 hover:bg-emerald-500/20 hover:text-emerald-400 cursor-pointer'
+                              }`}
+                              title={isMainAdmin ? 'Akun Super Admin Utama selalu aktif' : 'Klik untuk mengubah status aktif/nonaktif'}
+                            >
+                              {u.status_aktif ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                              <span>{u.status_aktif ? 'Aktif' : 'Nonaktif'}</span>
+                            </button>
+
+                            {/* Tombol Edit Pengguna */}
+                            <button
+                              onClick={() => startEditUser(u)}
+                              className="p-1.5 rounded-xl bg-slate-700/60 hover:bg-emerald-600/30 text-slate-300 hover:text-emerald-300 border border-slate-600/50 hover:border-emerald-500/40 text-xs transition-all cursor-pointer"
+                              title="Edit Data Pengguna"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Tombol Hapus Pengguna */}
+                            {!isMainAdmin ? (
+                              <button
+                                onClick={() => handleDeleteUser(u)}
+                                className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 hover:border-rose-500/40 text-xs transition-all cursor-pointer"
+                                title="Hapus Akun Pengguna Secara Permanen"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <span
+                                className="p-1.5 rounded-xl text-slate-600 cursor-not-allowed"
+                                title="Akun Super Admin Utama terlindungi dari penghapusan"
+                              >
+                                <ShieldCheck className="w-3.5 h-3.5 text-amber-500/50" />
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Catatan / Keterangan tambahan jika ada */}
+                        {u.keterangan && (
+                          <div className="pt-1.5 border-t border-slate-700/40 text-[11px] text-slate-400">
+                            <span>Catatan: </span>
+                            <span className="text-slate-300">{u.keterangan}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           )}
