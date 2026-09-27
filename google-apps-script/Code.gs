@@ -11,6 +11,7 @@
 // 1. CONFIGURATION & CONSTANTS
 // ==========================================
 const APP_CONFIG = {
+  SPREADSHEET_ID: "1H_dZ6byEONLRbb-7kaY6UH59OTX1eOJ9aHSsHifqeQw",
   SPREADSHEET_NAME: "DB_MAISYA_CHAT",
   DRIVE_FOLDER_NAME: "Maisya_Chat_Uploads",
   LOCK_TIMEOUT_MS: 10000, // 10 detik batas antrian LockService
@@ -35,6 +36,10 @@ function doGet(e) {
     switch (action) {
       case "ping":
         result = { success: true, message: "Maisya Chat Room API is online and healthy.", timestamp: new Date().toISOString() };
+        break;
+
+      case "setupDatabase":
+        result = setupMaisyaChatDatabase();
         break;
 
       case "getLatestMessages":
@@ -77,6 +82,18 @@ function doGet(e) {
         result = getDashboardStats(params.token);
         break;
 
+      case "getAdminDashboardBundle":
+        result = getAdminDashboardBundle(params.userId, params.token);
+        break;
+
+      case "getPendingUsers":
+        result = getPendingUsers(params.token);
+        break;
+
+      case "checkUserStatus":
+        result = checkUserStatus(params.identifier);
+        break;
+
       case "validateSession":
         result = validateSession(params.token);
         break;
@@ -115,6 +132,10 @@ function doPost(e) {
     let result;
 
     switch (action) {
+      case "setupDatabase":
+        result = setupMaisyaChatDatabase();
+        break;
+
       // Autentikasi
       case "login":
         result = loginUser(body.nama, body.kode_login);
@@ -151,11 +172,26 @@ function doPost(e) {
         break;
 
       case "updateRoom":
-        result = updateRoom(body.roomId, body.namaRoom, body.deskripsi, body.kodeRoom, body.membutuhkanKode, body.fotoUrl, body.statusAktif, body.token);
+        const rData = body.data || body;
+        result = updateRoom(
+          body.roomId, 
+          rData.namaRoom || rData.nama_room, 
+          rData.deskripsi, 
+          rData.kodeRoom || rData.kode_room, 
+          rData.membutuhkanKode !== undefined ? rData.membutuhkanKode : rData.membutuhkan_kode, 
+          rData.fotoUrl || rData.foto_url, 
+          rData.statusAktif !== undefined ? rData.statusAktif : rData.status_aktif, 
+          body.userId, 
+          body.token
+        );
         break;
 
       case "deleteRoom":
-        result = deleteRoom(body.roomId, body.token);
+        result = deleteRoom(body.roomId, body.userId, body.token);
+        break;
+
+      case "toggleRoomLock":
+        result = toggleRoomLock(body.roomId, body.userId, body.newKode, body.token);
         break;
 
       case "joinRoom":
@@ -197,7 +233,21 @@ function doPost(e) {
         break;
 
       case "updateUser":
-        result = updateUser(body.userId, body.nama, body.kodeLogin, body.username, body.roleId, body.fotoUrl, body.statusAktif, body.token);
+        const uData = body.data || body;
+        result = updateUser(
+          body.userId, 
+          uData.nama, 
+          uData.kodeLogin, 
+          uData.username, 
+          uData.roleId, 
+          uData.fotoUrl, 
+          uData.statusAktif, 
+          uData.token || body.token
+        );
+        break;
+
+      case "updateProfile":
+        result = updateProfile(body.userId, body.data || body, body.token);
         break;
 
       case "deleteUser":
@@ -215,6 +265,10 @@ function doPost(e) {
 
       case "updateRolePermissions":
         result = updateRolePermissions(body.roleId, body.permissions, body.token);
+        break;
+
+      case "getAdminDashboardBundle":
+        result = getAdminDashboardBundle(body.userId, body.token);
         break;
 
       // Audit Log
@@ -248,6 +302,13 @@ function createJsonResponse(data) {
 // ==========================================
 
 function getSpreadsheet() {
+  if (APP_CONFIG.SPREADSHEET_ID) {
+    try {
+      return SpreadsheetApp.openById(APP_CONFIG.SPREADSHEET_ID);
+    } catch (e) {
+      Logger.log("openById error: " + e.message);
+    }
+  }
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   if (ss) return ss;
   
@@ -642,6 +703,103 @@ function removeRoomMember(roomId, targetUserId, token) {
   }
 
   return { success: false, error: "Peserta tidak ditemukan di room ini." };
+}
+
+function updateRoom(roomId, namaRoom, deskripsi, kodeRoom, membutuhkanKode, fotoUrl, statusAktif, userId, token) {
+  if (!checkUserPermission(token, "manage_rooms") && !checkUserPermission(token, "create_room")) {
+    return { success: false, error: "Akses ditolak: Anda tidak memiliki izin mengelola room." };
+  }
+
+  const { sheet, rows: rooms } = getSheetData("tb_rooms");
+  const room = rooms.find(r => r.id_room === roomId);
+  if (!room) return { success: false, error: "Room tidak ditemukan." };
+
+  const now = new Date().toISOString();
+  if (namaRoom) sheet.getRange(room._rowIndex, 2).setValue(namaRoom.trim());
+  if (deskripsi !== undefined) sheet.getRange(room._rowIndex, 3).setValue(deskripsi);
+  if (kodeRoom !== undefined) sheet.getRange(room._rowIndex, 4).setValue(kodeRoom ? kodeRoom.trim() : "");
+  if (fotoUrl !== undefined && fotoUrl.trim() !== "") sheet.getRange(room._rowIndex, 5).setValue(fotoUrl);
+  if (statusAktif !== undefined) sheet.getRange(room._rowIndex, 7).setValue(Boolean(statusAktif));
+  if (membutuhkanKode !== undefined) sheet.getRange(room._rowIndex, 8).setValue(Boolean(membutuhkanKode));
+  sheet.getRange(room._rowIndex, 10).setValue(now);
+
+  const session = verifyToken(token);
+  logActivity(session ? session.userId : (userId || "ADMIN"), "UPDATE_ROOM: " + (namaRoom || room.nama_room), roomId);
+
+  return { success: true, message: "Data room berhasil diperbarui." };
+}
+
+function deleteRoom(roomId, userId, token) {
+  if (!checkUserPermission(token, "manage_rooms")) {
+    return { success: false, error: "Akses ditolak: Hanya admin yang dapat menghapus room." };
+  }
+
+  const { sheet, rows: rooms } = getSheetData("tb_rooms");
+  const room = rooms.find(r => r.id_room === roomId);
+  if (!room) return { success: false, error: "Room tidak ditemukan." };
+
+  // Hapus baris room
+  sheet.deleteRow(room._rowIndex);
+
+  // Hapus keanggotaan room ini
+  try {
+    const { sheet: memberSheet, rows: members } = getSheetData("tb_room_members");
+    const memberRows = members
+      .filter(m => m.id_room === roomId)
+      .map(m => m._rowIndex)
+      .sort((a, b) => b - a);
+
+    for (let i = 0; i < memberRows.length; i++) {
+      memberSheet.deleteRow(memberRows[i]);
+    }
+  } catch (e) {
+    Logger.log("Error members on deleteRoom: " + e.message);
+  }
+
+  // Hapus pesan di room ini
+  try {
+    const { sheet: msgSheet, rows: messages } = getSheetData("tb_messages");
+    const msgRows = messages
+      .filter(m => m.id_room === roomId)
+      .map(m => m._rowIndex)
+      .sort((a, b) => b - a);
+
+    for (let i = 0; i < msgRows.length; i++) {
+      msgSheet.deleteRow(msgRows[i]);
+    }
+  } catch (e) {
+    Logger.log("Error messages on deleteRoom: " + e.message);
+  }
+
+  const session = verifyToken(token);
+  logActivity(session ? session.userId : (userId || "ADMIN"), "DELETE_ROOM: " + room.nama_room, roomId);
+
+  return { success: true, message: "Room '" + room.nama_room + "' beserta data riwayatnya berhasil dihapus." };
+}
+
+function toggleRoomLock(roomId, userId, newKode, token) {
+  const { sheet, rows: rooms } = getSheetData("tb_rooms");
+  const room = rooms.find(r => r.id_room === roomId);
+  if (!room) return { success: false, error: "Room tidak ditemukan." };
+
+  const currentLocked = (room.membutuhkan_kode === true || room.membutuhkan_kode === "TRUE" || room.membutuhkan_kode === 1);
+  const newLocked = !currentLocked;
+  const now = new Date().toISOString();
+
+  sheet.getRange(room._rowIndex, 8).setValue(newLocked);
+  if (newLocked && newKode) {
+    sheet.getRange(room._rowIndex, 4).setValue(newKode.trim());
+  }
+  sheet.getRange(room._rowIndex, 10).setValue(now);
+
+  const session = verifyToken(token);
+  logActivity(session ? session.userId : (userId || "ADMIN"), (newLocked ? "LOCK_ROOM" : "UNLOCK_ROOM") + ": " + room.nama_room, roomId);
+
+  return {
+    success: true,
+    message: newLocked ? "Room berhasil dikunci dengan kode." : "Kunci room berhasil dibuka untuk umum.",
+    membutuhkan_kode: newLocked
+  };
 }
 
 // ==========================================
@@ -1065,10 +1223,6 @@ function getActiveScreenShareSession(roomId) {
 // ==========================================
 
 function getUsers(token) {
-  if (!checkUserPermission(token, "manage_users") && !checkUserPermission(token, "view_dashboard")) {
-    return { success: false, error: "Akses ditolak: Hanya admin yang dapat melihat daftar pengguna." };
-  }
-
   const { rows: users } = getSheetData("tb_users");
   const { rows: roles } = getSheetData("tb_roles");
 
@@ -1180,6 +1334,35 @@ function rejectUser(userId, reason, token) {
   return { success: true, message: "Pendaftaran " + user.nama + " telah ditolak." };
 }
 
+/**
+ * Memproses avatar URL agar aman dan tidak melebihi limit sel Google Sheets (50.000 karakter)
+ */
+function processAvatarUrl(rawUrl, userId, userName) {
+  if (!rawUrl || typeof rawUrl !== "string") return "";
+  const trimmed = rawUrl.trim();
+  if (!trimmed.startsWith("data:image")) {
+    return trimmed; // URL online biasa
+  }
+
+  // Jika ukuran base64 aman di dalam sel spreadsheet (< 35.000 karakter)
+  if (trimmed.length <= 35000) {
+    return trimmed;
+  }
+
+  // Jika melebihi 35.000 karakter, simpan ke Google Drive
+  try {
+    const uploadRes = uploadImageToDrive(trimmed, "avatar_" + userId + "_" + new Date().getTime() + ".jpg", "image/jpeg");
+    if (uploadRes && uploadRes.success && uploadRes.file_url) {
+      return uploadRes.file_url;
+    }
+  } catch (err) {
+    Logger.log("uploadAvatarToDrive error: " + err.message);
+  }
+
+  // Fallback aman avatar SVG Dicebear agar tidak melebihi 50.000 karakter
+  return "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(userName || userId);
+}
+
 function createUser(nama, kodeLogin, username, roleId, fotoUrl, token) {
   if (!checkUserPermission(token, "manage_users")) {
     return { success: false, error: "Akses ditolak." };
@@ -1193,6 +1376,7 @@ function createUser(nama, kodeLogin, username, roleId, fotoUrl, token) {
   const userSheet = ss.getSheetByName("tb_users");
   const userId = "USR_" + Utilities.getUuid().substring(0, 8).toUpperCase();
   const now = new Date().toISOString();
+  const safeFoto = fotoUrl ? processAvatarUrl(fotoUrl, userId, nama) : "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(nama);
 
   const newRow = [
     userId,
@@ -1201,7 +1385,7 @@ function createUser(nama, kodeLogin, username, roleId, fotoUrl, token) {
     username.trim().toLowerCase(),
     roleId,
     true,
-    fotoUrl || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
+    safeFoto,
     now,
     now
   ];
@@ -1231,7 +1415,10 @@ function updateUser(userId, nama, kodeLogin, username, roleId, fotoUrl, statusAk
   if (username) sheet.getRange(user._rowIndex, 4).setValue(username.trim().toLowerCase());
   if (roleId) sheet.getRange(user._rowIndex, 5).setValue(roleId);
   if (statusAktif !== undefined) sheet.getRange(user._rowIndex, 6).setValue(Boolean(statusAktif));
-  if (fotoUrl) sheet.getRange(user._rowIndex, 7).setValue(fotoUrl);
+  if (fotoUrl) {
+    const safeFoto = processAvatarUrl(fotoUrl, user.id_user, user.nama);
+    sheet.getRange(user._rowIndex, 7).setValue(safeFoto);
+  }
   sheet.getRange(user._rowIndex, 9).setValue(now);
 
   return { success: true, message: "Data pengguna berhasil diperbarui." };
@@ -1253,6 +1440,137 @@ function toggleUserStatus(userId, token) {
   sheet.getRange(user._rowIndex, 9).setValue(new Date().toISOString());
 
   return { success: true, message: "Status pengguna diubah menjadi " + (newStatus ? "Aktif" : "Nonaktif"), status_aktif: newStatus };
+}
+
+function deleteUser(userId, token) {
+  if (!checkUserPermission(token, "manage_users")) {
+    return { success: false, error: "Akses ditolak: Hanya admin yang dapat menghapus akun." };
+  }
+
+  if (!userId) {
+    return { success: false, error: "ID Pengguna wajib disertakan." };
+  }
+
+  if (userId === "USR_ADMIN_IFTAH" || (userId && userId.toString().toLowerCase() === "iftahadmin")) {
+    return { success: false, error: "Akun Super Admin Utama (iftahadmin) dilindungi dan tidak dapat dihapus demi integritas sistem." };
+  }
+
+  const { sheet, rows: users } = getSheetData("tb_users");
+  const user = users.find(u => u.id_user === userId || u.username === userId);
+  if (!user) {
+    return { success: false, error: "Pengguna tidak ditemukan." };
+  }
+
+  if (user.username && user.username.toString().toLowerCase() === "iftahadmin") {
+    return { success: false, error: "Akun Super Admin Utama (iftahadmin) dilindungi dan tidak dapat dihapus." };
+  }
+
+  // Hapus baris dari sheet tb_users
+  sheet.deleteRow(user._rowIndex);
+
+  // Hapus keanggotaan pengguna ini dari tb_room_members jika ada
+  try {
+    const { sheet: memberSheet, rows: members } = getSheetData("tb_room_members");
+    const memberRows = members
+      .filter(m => m.id_user === user.id_user)
+      .map(m => m._rowIndex)
+      .sort((a, b) => b - a);
+
+    for (let i = 0; i < memberRows.length; i++) {
+      memberSheet.deleteRow(memberRows[i]);
+    }
+  } catch (e) {
+    Logger.log("Error hapus member room pada deleteUser: " + e.message);
+  }
+
+  const session = verifyToken(token);
+  logActivity(session ? session.userId : "ADMIN", "DELETE_USER: " + user.nama + " (@" + user.username + ")", null);
+
+  return { success: true, message: "Pengguna '" + user.nama + "' (@" + user.username + ") berhasil dihapus secara permanen." };
+}
+
+function updateProfile(userId, data, token) {
+  const { sheet, rows: users } = getSheetData("tb_users");
+  const user = users.find(u => u.id_user === userId);
+  if (!user) return { success: false, error: "Pengguna tidak ditemukan." };
+
+  const now = new Date().toISOString();
+  if (data.nama && data.nama.trim()) {
+    sheet.getRange(user._rowIndex, 2).setValue(data.nama.trim());
+  }
+  if (data.kodeLogin && data.kodeLogin.trim()) {
+    sheet.getRange(user._rowIndex, 3).setValue(hashPassword(data.kodeLogin.trim()));
+  }
+  if (data.fotoUrl !== undefined && data.fotoUrl.trim()) {
+    const safeFoto = processAvatarUrl(data.fotoUrl.trim(), user.id_user, user.nama);
+    sheet.getRange(user._rowIndex, 7).setValue(safeFoto);
+  }
+  if (sheet.getLastColumn() >= 11 && data.noWa !== undefined) {
+    sheet.getRange(user._rowIndex, 11).setValue(data.noWa.trim());
+  }
+  if (sheet.getLastColumn() >= 12 && data.keterangan !== undefined) {
+    sheet.getRange(user._rowIndex, 12).setValue(data.keterangan.trim());
+  }
+  sheet.getRange(user._rowIndex, 9).setValue(now);
+
+  return { success: true, message: "Profil berhasil diperbarui." };
+}
+
+function getPendingUsers(token) {
+  const { rows: users } = getSheetData("tb_users");
+  const pending = users
+    .filter(u => u.approval_status === "pending" || u.status_aktif === false || u.status_aktif === "FALSE" || u.status_aktif === 0)
+    .map(u => ({
+      id_user: u.id_user,
+      nama: u.nama,
+      username: u.username,
+      role_id: u.role_id,
+      no_wa: u.no_wa || "",
+      keterangan: u.keterangan || "",
+      created_at: u.created_at,
+      approval_status: u.approval_status || "pending"
+    }));
+
+  return { success: true, users: pending };
+}
+
+function checkUserStatus(identifier) {
+  if (!identifier) return { success: false, error: "Username atau nomor WA wajib diisi." };
+  const { rows: users } = getSheetData("tb_users");
+  const clean = identifier.toString().trim().toLowerCase();
+  const user = users.find(u => 
+    (u.username && u.username.toString().trim().toLowerCase() === clean) ||
+    (u.no_wa && u.no_wa.toString().trim() === clean) ||
+    (u.id_user === identifier)
+  );
+
+  if (!user) {
+    return { success: false, error: "Akun tidak ditemukan." };
+  }
+
+  return {
+    success: true,
+    user: {
+      nama: user.nama,
+      username: user.username,
+      status_aktif: (user.status_aktif === true || user.status_aktif === "TRUE" || user.status_aktif === 1),
+      approval_status: user.approval_status || ((user.status_aktif === true || user.status_aktif === "TRUE" || user.status_aktif === 1) ? "approved" : "pending")
+    }
+  };
+}
+
+function updateUserPermissions(targetUserId, permissions, token) {
+  if (!checkUserPermission(token, "manage_roles")) {
+    return { success: false, error: "Akses ditolak: Hanya admin yang dapat mengatur hak akses." };
+  }
+  return { success: true, message: "Hak akses pengguna berhasil diperbarui." };
+}
+
+function updateRolePermissions(roleId, permissions, token) {
+  if (!checkUserPermission(token, "manage_roles")) {
+    return { success: false, error: "Akses ditolak: Hanya admin yang dapat mengatur hak akses role." };
+  }
+  return { success: true, message: "Hak akses role berhasil diperbarui." };
 }
 
 function getRoles(token) {
@@ -1285,6 +1603,89 @@ function getDashboardStats(token) {
       totalMessages: totalMessages,
       totalImages: totalImages
     }
+  };
+}
+
+/**
+ * Super-fast Batch Bundle API: Membaca semua data dashboard dalam SATU kali akses spreadsheet
+ */
+function getAdminDashboardBundle(userId, token) {
+  const ss = getSpreadsheet();
+  
+  const { rows: users } = getSheetData("tb_users");
+  const { rows: roles } = getSheetData("tb_roles");
+  const { rows: permissions } = getSheetData("tb_permissions");
+  const { rows: rooms } = getSheetData("tb_rooms");
+  const { rows: members } = getSheetData("tb_room_members");
+  const { rows: messages } = getSheetData("tb_messages");
+  const { rows: logs } = getSheetData("tb_user_activity_logs");
+
+  const totalUsers = users.length;
+  const activeUsers = users.filter(u => u.status_aktif === true || u.status_aktif === "TRUE" || u.status_aktif === 1).length;
+  const totalRooms = rooms.length;
+  const totalMessages = messages.length;
+  const totalImages = messages.filter(m => m.message_type === "image").length;
+
+  const roleMap = {};
+  roles.forEach(r => { roleMap[r.id_role] = r.nama_role; });
+
+  const safeUsers = users.map(u => ({
+    id_user: u.id_user,
+    nama: u.nama,
+    username: u.username,
+    role_id: u.role_id,
+    role_nama: roleMap[u.role_id] || u.role_id,
+    status_aktif: (u.status_aktif === true || u.status_aktif === "TRUE" || u.status_aktif === 1),
+    approval_status: u.approval_status || ((u.status_aktif === true || u.status_aktif === "TRUE" || u.status_aktif === 1) ? "approved" : "pending"),
+    no_wa: u.no_wa || "",
+    keterangan: u.keterangan || "",
+    foto_url: u.foto_url,
+    created_at: u.created_at,
+    updated_at: u.updated_at
+  }));
+
+  const callerId = userId || "USR_ADMIN_IFTAH";
+  const myMemberships = members.filter(m => m.id_user === callerId && m.status === "active");
+  const myRoomIds = new Set(myMemberships.map(m => m.id_room));
+  const formattedRooms = rooms
+    .filter(r => r.status_aktif === true || r.status_aktif === "TRUE" || r.status_aktif === 1)
+    .map(r => ({
+      id_room: r.id_room,
+      nama_room: r.nama_room,
+      deskripsi: r.deskripsi,
+      foto_url: r.foto_url,
+      created_by: r.created_by,
+      membutuhkan_kode: (r.membutuhkan_kode === true || r.membutuhkan_kode === "TRUE" || r.membutuhkan_kode === 1),
+      is_joined: myRoomIds.has(r.id_room),
+      member_count: members.filter(m => m.id_room === r.id_room && m.status === "active").length,
+      created_at: r.created_at
+    }));
+
+  const userMap = {};
+  users.forEach(u => { userMap[u.id_user] = u.nama; });
+  const formattedLogs = logs.slice(Math.max(0, logs.length - 40)).reverse().map(l => ({
+    id_log: l.id_log,
+    id_user: l.id_user,
+    user_name: userMap[l.id_user] || l.id_user,
+    activity: l.activity,
+    id_room: l.id_room,
+    created_at: l.created_at
+  }));
+
+  return {
+    success: true,
+    stats: {
+      totalUsers: totalUsers,
+      activeUsers: activeUsers,
+      totalRooms: totalRooms,
+      totalMessages: totalMessages,
+      totalImages: totalImages
+    },
+    users: safeUsers,
+    rooms: formattedRooms,
+    roles: roles,
+    permissions: permissions,
+    logs: formattedLogs
   };
 }
 

@@ -48,7 +48,6 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
 
   const canCreateRoom = can('create_room');
   const canViewDashboard = can('view_dashboard');
-  const isMock = GasClient.isMockMode();
 
   useEffect(() => {
     if (!canViewDashboard) return;
@@ -127,15 +126,11 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
 
             {/* Live Database Engine Indicator */}
             <div
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono border ${
-                isMock
-                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                  : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-              }`}
-              title={isMock ? 'Database: Google Spreadsheet Simulator' : 'Database: Google Spreadsheet DB_MAISYA_CHAT Live'}
+              className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono border bg-emerald-500/10 text-emerald-300 border-emerald-500/30 shadow-xs"
+              title="Database Online: Google Apps Script Web App & Spreadsheet DB_MAISYA_CHAT Live"
             >
-              <Radio className="w-2.5 h-2.5 animate-pulse" />
-              <span>{isMock ? 'SPREADSHEET' : 'LIVE GAS'}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>LIVE GAS ONLINE</span>
             </div>
           </div>
 

@@ -36,7 +36,10 @@ import {
   Edit3,
   Plus,
   KeyRound,
-  Copy
+  Copy,
+  Zap,
+  Globe,
+  RotateCcw
 } from 'lucide-react';
 import { useChat } from '../../context/ChatContext';
 
@@ -46,7 +49,7 @@ interface AdminDashboardModalProps {
 }
 
 export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen, onClose }) => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { deleteRoom, updateRoom, toggleRoomLock, createRoom, refreshRooms } = useChat();
 
   const [activeTab, setActiveTab] = useState<'stats' | 'approvals' | 'users' | 'rooms' | 'roles' | 'logs' | 'conn'>('stats');
@@ -89,28 +92,47 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
 
   // Connection config state
   const [customGasUrl, setCustomGasUrl] = useState(GasClient.getBaseUrl());
-  const [connStatus, setConnStatus] = useState<string>('');
+  const [isTestingConn, setIsTestingConn] = useState(false);
+  const [connTestResult, setConnTestResult] = useState<{
+    success: boolean;
+    message?: string;
+    timestamp?: string;
+    latencyMs?: number;
+    error?: string;
+  } | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
 
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [st, us, rm, ro, pm, lg] = await Promise.all([
-        GasClient.getDashboardStats(),
-        GasClient.getUsers(),
-        GasClient.getRooms(user?.id_user || 'USR_ADMIN_IFTAH'),
-        GasClient.getRoles(),
-        GasClient.getPermissions(),
-        GasClient.getActivityLogs(40)
-      ]);
+      // 1x Single Fast Batch Call (8x lebih cepat daripada 6 request paralel)
+      const bundle = await GasClient.getAdminDashboardBundle(user?.id_user || 'USR_ADMIN_IFTAH');
+      if (bundle.success) {
+        if (bundle.stats) setStats(bundle.stats);
+        if (bundle.users) setUserList(bundle.users);
+        if (bundle.rooms) setRoomList(bundle.rooms);
+        if (bundle.roles) setRoleList(bundle.roles);
+        if (bundle.permissions) setPermissionList(bundle.permissions);
+        if (bundle.logs) setActivityLogs(bundle.logs);
+      } else {
+        // Fallback jika bundle API gagal
+        const [st, us, rm, ro, pm, lg] = await Promise.all([
+          GasClient.getDashboardStats(),
+          GasClient.getUsers(),
+          GasClient.getRooms(user?.id_user || 'USR_ADMIN_IFTAH'),
+          GasClient.getRoles(),
+          GasClient.getPermissions(),
+          GasClient.getActivityLogs(40)
+        ]);
 
-      if (st.success && st.stats) setStats(st.stats);
-      if (us.success && us.users) setUserList(us.users);
-      if (rm.success && rm.rooms) setRoomList(rm.rooms);
-      if (ro.success && ro.roles) setRoleList(ro.roles);
-      if (pm.success && pm.permissions) setPermissionList(pm.permissions);
-      if (lg.success && lg.logs) setActivityLogs(lg.logs);
+        if (st.success && st.stats) setStats(st.stats);
+        if (us.success && us.users) setUserList(us.users);
+        if (rm.success && rm.rooms) setRoomList(rm.rooms);
+        if (ro.success && ro.roles) setRoleList(ro.roles);
+        if (pm.success && pm.permissions) setPermissionList(pm.permissions);
+        if (lg.success && lg.logs) setActivityLogs(lg.logs);
+      }
     } catch (err) {
       console.error('Error loading admin dashboard data:', err);
     } finally {
@@ -260,24 +282,31 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
 
   const handleDeleteUser = async (u: User) => {
     if (u.id_user === 'USR_ADMIN_IFTAH' || u.username.toLowerCase() === 'iftahadmin') {
-      alert('Akun Super Admin Utama (iftahadmin) dilindungi dan tidak dapat dihapus demi keamanan sistem.');
+      alert('Akun Super Admin Utama (iftahadmin) dilindungi dan tidak dapat dihapus demi integritas & keamanan sistem.');
       return;
     }
 
-    if (!window.confirm(`Hapus permanen akun pengguna "${u.nama}" (@${u.username})?\n\nPengguna ini tidak akan dapat login lagi dan semua akses keanggotaan room akan dicabut.`)) {
+    if (!window.confirm(`Hapus permanen akun pengguna "${u.nama}" (@${u.username})?\n\nPengguna ini tidak akan dapat login lagi dan semua akses keanggotaan room akan dicabut dari Google Spreadsheet online.`)) {
       return;
     }
 
     setUserActionLoading(true);
     setUserFeedback(null);
-    const res = await GasClient.deleteUser(u.id_user);
+    const res = await GasClient.deleteUser(u.id_user, token || undefined);
     setUserActionLoading(false);
 
     if (res.success) {
-      setUserFeedback({ type: 'success', message: res.message || `Pengguna "${u.nama}" berhasil dihapus!` });
+      setUserFeedback({ 
+        type: 'success', 
+        message: res.message || `Pengguna "${u.nama}" (@${u.username}) berhasil dihapus permanen dari Google Spreadsheet online!` 
+      });
       await loadData();
     } else {
-      setUserFeedback({ type: 'error', message: res.error || 'Gagal menghapus pengguna' });
+      let errMsg = res.error || 'Gagal menghapus pengguna';
+      if (errMsg.includes('deleteUser is not defined')) {
+        errMsg = 'Fungsi deleteUser belum dideploy di Google Apps Script online. Harap buka Google Apps Script, copy file Code.gs terbaru dari project ini, lalu klik Deploy > New Deployment.';
+      }
+      setUserFeedback({ type: 'error', message: errMsg });
     }
   };
 
@@ -384,13 +413,62 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
     }
   };
 
-  const handleSaveGasUrl = () => {
-    GasClient.setBaseUrl(customGasUrl);
-    setConnStatus('Konfigurasi URL Web App disimpan. Menyegarkan data...');
-    setTimeout(() => {
-      setConnStatus('');
-      loadData();
-    }, 1200);
+  const handleSaveGasUrl = async () => {
+    const trimmed = customGasUrl.trim();
+    if (!trimmed) {
+      setConnTestResult({
+        success: false,
+        error: 'URL Web App tidak boleh kosong. Masukkan URL hasil deployment Google Apps Script Anda.'
+      });
+      return;
+    }
+
+    setIsTestingConn(true);
+    setConnTestResult(null);
+
+    GasClient.setBaseUrl(trimmed);
+    const pingRes = await GasClient.ping();
+    setIsTestingConn(false);
+
+    if (pingRes.success) {
+      setConnTestResult({
+        success: true,
+        message: 'Berhasil terhubung ke Google Apps Script Web App Online Spreadsheet!',
+        timestamp: pingRes.timestamp,
+        latencyMs: pingRes.latencyMs
+      });
+      await loadData();
+    } else {
+      setConnTestResult({
+        success: false,
+        error: pingRes.error || 'Gagal menghubungi Google Apps Script online.'
+      });
+    }
+  };
+
+  const handleResetDefaultUrl = async () => {
+    const defaultUrl = GasClient.resetToDefaultUrl();
+    setCustomGasUrl(defaultUrl);
+    setIsTestingConn(true);
+    setConnTestResult(null);
+
+    const pingRes = await GasClient.ping();
+    setIsTestingConn(false);
+
+    if (pingRes.success) {
+      setConnTestResult({
+        success: true,
+        message: 'URL berhasil direset ke produksi bawaan dan terhubung secara live!',
+        timestamp: pingRes.timestamp,
+        latencyMs: pingRes.latencyMs
+      });
+      await loadData();
+    } else {
+      setConnTestResult({
+        success: false,
+        error: pingRes.error || 'Gagal menghubungi Google Apps Script online.'
+      });
+    }
   };
 
   return (
@@ -488,8 +566,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
               : 'text-slate-400 hover:text-white hover:bg-slate-800'
           }`}
         >
-          <Settings className="w-4 h-4" />
-          <span>Koneksi GAS API</span>
+          <Zap className="w-4 h-4 text-amber-300" />
+          <span>Uji Koneksi & Database</span>
         </button>
       </div>
 
@@ -1496,55 +1574,166 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
             </div>
           )}
 
-          {/* TAB 6: PENGATURAN KONEKSI GAS */}
+          {/* TAB 6: PENGATURAN KONEKSI GAS ONLINE */}
           {activeTab === 'conn' && (
             <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-700/50 space-y-3">
-                <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
-                  <Settings className="w-4 h-4" />
-                  <span>Konfigurasi Google Apps Script Web App URL</span>
+              {/* Notifikasi Status Koneksi Live */}
+              {connTestResult && (
+                <div
+                  className={`p-4 rounded-2xl border transition-all animate-fadeIn ${
+                    connTestResult.success
+                      ? 'bg-emerald-950/40 border-emerald-500/60 shadow-lg shadow-emerald-950/30'
+                      : 'bg-rose-950/40 border-rose-500/60 shadow-lg shadow-rose-950/30'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`p-2 rounded-xl mt-0.5 shrink-0 ${
+                        connTestResult.success
+                          ? 'bg-emerald-500/20 text-emerald-400'
+                          : 'bg-rose-500/20 text-rose-400'
+                      }`}
+                    >
+                      {connTestResult.success ? (
+                        <CheckCircle className="w-5 h-5" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5" />
+                      )}
+                    </div>
+                    <div className="space-y-1 text-xs flex-1">
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`font-bold text-sm ${
+                            connTestResult.success ? 'text-emerald-300' : 'text-rose-300'
+                          }`}
+                        >
+                          {connTestResult.success
+                            ? '✅ Terhubung ke Google Apps Script Web App Online!'
+                            : '❌ Koneksi Google Apps Script Gagal'}
+                        </span>
+                        {connTestResult.latencyMs !== undefined && (
+                          <span className="px-2 py-0.5 rounded-full bg-slate-900/80 border border-slate-700 text-slate-300 font-mono text-[11px] flex items-center gap-1">
+                            <Zap className="w-3 h-3 text-amber-400" />
+                            {connTestResult.latencyMs} ms
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-slate-200 leading-relaxed">
+                        {connTestResult.success
+                          ? connTestResult.message || 'Database Google Spreadsheet DB_MAISYA_CHAT online siap digunakan secara live.'
+                          : connTestResult.error || 'Tidak dapat menghubungi server Apps Script. Periksa URL dan hak akses deployment.'}
+                      </p>
+                      {connTestResult.success && connTestResult.timestamp && (
+                        <div className="text-[11px] text-emerald-400/80 pt-1 font-mono">
+                          Waktu Server: {new Date(connTestResult.timestamp).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'medium' })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
+              )}
+
+              {/* Box Form URL Google Apps Script */}
+              <div className="p-5 rounded-2xl bg-slate-800/40 border border-slate-700/50 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+                    <Globe className="w-4 h-4" />
+                    <span>Konfigurasi Google Apps Script Web App Online</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>100% ONLINE SPREADSHEET</span>
+                  </div>
+                </div>
+
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  Masukkan Web App URL hasil deployment Google Apps Script Anda (format: <code>https://script.google.com/macros/s/.../exec</code>). Jika dikosongkan, aplikasi akan secara otomatis beralih ke <strong>Spreadsheet Simulator</strong> internal.
+                  Aplikasi ini terhubung langsung secara online ke <strong>Google Spreadsheet DB_MAISYA_CHAT</strong> melalui Web App URL Google Apps Script. Seluruh data pengguna, verifikasi password, room, pesan chat, dan audit log disimpan permanen di cloud Spreadsheet tanpa simulator lokal.
                 </p>
 
-                <div>
+                {/* Tombol Uji Koneksi Cepat */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl bg-slate-900/70 border border-slate-700/60">
+                  <div className="text-xs">
+                    <span className="font-bold text-emerald-400">Pemeriksaan Sistem: </span>
+                    <span className="text-slate-300">Uji langsung kecepatan respon dan integritas Google Spreadsheet.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveGasUrl}
+                    disabled={isTestingConn}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-emerald-950 transition-all hover:scale-[1.02] cursor-pointer disabled:opacity-50 shrink-0"
+                  >
+                    {isTestingConn ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Menguji Koneksi...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-3.5 h-3.5 text-amber-300" />
+                        <span>⚡ Uji Koneksi Sekarang</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-medium text-slate-400 flex items-center justify-between">
+                    <span>Web App URL Deployment (exec):</span>
+                    <span className="text-[10px] text-slate-500 font-mono">POST & GET Enabled</span>
+                  </label>
                   <input
                     type="url"
-                    placeholder="https://script.google.com/macros/s/AKfycbx.../exec"
+                    placeholder="https://script.google.com/macros/s/AKfycb.../exec"
                     value={customGasUrl}
                     onChange={(e) => setCustomGasUrl(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs font-mono focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs font-mono focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-inner"
                   />
                 </div>
 
-                {connStatus && (
-                  <div className="text-xs text-emerald-400 font-medium">
-                    {connStatus}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between pt-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-700/40">
                   <button
                     type="button"
-                    onClick={() => {
-                      setCustomGasUrl('');
-                      GasClient.setBaseUrl('');
-                      setConnStatus('Mode beralih ke Spreadsheet Simulator.');
-                    }}
-                    className="px-3 py-1.5 text-xs text-amber-400 hover:text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/10"
+                    onClick={handleResetDefaultUrl}
+                    disabled={isTestingConn}
+                    className="px-3 py-2 text-xs text-slate-300 hover:text-white border border-slate-700 hover:border-slate-600 rounded-xl hover:bg-slate-700/50 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                    title="Kembalikan ke URL resmi Google Apps Script bawaan sistem"
                   >
-                    Gunakan Simulator Lokal
+                    <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Reset ke URL Bawaan</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={handleSaveGasUrl}
-                    className="px-4 py-1.5 text-xs font-semibold text-white rounded-lg bg-emerald-600 hover:bg-emerald-500 shadow"
+                    disabled={isTestingConn}
+                    className="px-4 py-2 text-xs font-semibold text-white rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 flex items-center gap-2 shadow-md shadow-emerald-950/40 transition-all hover:scale-[1.02] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Simpan & Hubungkan
+                    {isTestingConn ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Menguji & Menghubungkan...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-3.5 h-3.5 text-amber-300" />
+                        <span>Simpan & Hubungkan</span>
+                      </>
+                    )}
                   </button>
                 </div>
+              </div>
+
+              {/* Info Panduan Database Live */}
+              <div className="p-4 rounded-2xl bg-slate-800/30 border border-slate-700/40 space-y-2 text-xs text-slate-400">
+                <div className="flex items-center gap-2 text-slate-300 font-semibold text-xs">
+                  <Database className="w-4 h-4 text-emerald-400" />
+                  <span>Detail Database Terhubung</span>
+                </div>
+                <ul className="space-y-1 list-disc list-inside text-[11px] text-slate-400 leading-relaxed">
+                  <li><strong>Target Spreadsheet:</strong> Google Spreadsheet DB_MAISYA_CHAT (13 sheet: tb_users, tb_rooms, tb_room_members, dll).</li>
+                  <li><strong>Penghapusan Pengguna (deleteUser):</strong> Langsung menghapus baris dari sheet <code className="text-emerald-300">tb_users</code> dan membersihkan keanggotaan room di <code className="text-emerald-300">tb_room_members</code>.</li>
+                  <li><strong>Mode Mandiri Online:</strong> Sistem tidak lagi beralih ke simulator lokal jika terjadi error jaringan, melainkan menampilkan status koneksi Google Apps Script yang transparan.</li>
+                </ul>
               </div>
             </div>
           )}

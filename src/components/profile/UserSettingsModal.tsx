@@ -73,24 +73,69 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, on
     }
   }, [user, isOpen, customWallpaperUrl]);
 
-  // Handle upload foto lokal
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        img.src = e.target?.result as string;
+      };
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 160;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(img.src);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        // JPEG quality 0.75 menghasilkan ukuran ~5-8KB (hanya ~7.000 karakter base64, sangat aman untuk batas sel 50.000 karakter Google Sheets)
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.75);
+        resolve(compressedBase64);
+      };
+      img.onerror = () => reject(new Error('Gagal memproses gambar'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Handle upload foto lokal dengan kompresi otomatis
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      setFeedback({ type: 'error', message: 'Ukuran foto maksimal 2MB' });
+    if (file.size > 10 * 1024 * 1024) {
+      setFeedback({ type: 'error', message: 'Ukuran foto maksimal 10MB' });
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (typeof event.target?.result === 'string') {
-        setFotoUrl(event.target.result);
-        setFeedback({ type: 'success', message: 'Foto berhasil dimuat dari perangkat. Klik "Simpan Perubahan" untuk menerapkan.' });
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file);
+      setFotoUrl(compressed);
+      setFeedback({
+        type: 'success',
+        message: 'Foto profil berhasil dioptimasi & dimuat. Klik "Simpan Perubahan" untuk menerapkan ke Spreadsheet.'
+      });
+    } catch {
+      setFeedback({ type: 'error', message: 'Gagal memproses file foto. Pastikan format file berupa gambar.' });
+    }
   };
 
   const handleProfileSubmit = async (e: React.FormEvent) => {

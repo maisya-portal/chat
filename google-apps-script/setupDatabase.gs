@@ -1,30 +1,66 @@
 /**
  * ============================================================================
  * MAISYA CHAT ROOM - DATABASE INITIALIZER & SEEDER
- * Spreadsheet: DB_MAISYA_CHAT
+ * Spreadsheet ID: 1H_dZ6byEONLRbb-7kaY6UH59OTX1eOJ9aHSsHifqeQw
  * Pondok Pesantren Imam Syafi'i Brebes
  * ============================================================================
  * 
- * CARA PENGGUNAAN:
- * 1. Buka Google Sheets baru (atau buka Spreadsheet yang sudah ada).
- * 2. Beri nama Spreadsheet: "DB_MAISYA_CHAT".
- * 3. Buka menu Extensions > Apps Script.
- * 4. Salin isi file ini ke editor Apps Script.
- * 5. Pilih fungsi `setupMaisyaChatDatabase` dari dropdown fungsi, lalu klik "Run".
- * 6. Berikan izin otorisasi jika diminta.
- * 7. Seluruh 13 sheet beserta header, styling, dan data awal akan dibuat otomatis!
+ * FUNGSI INI OTOMATIS:
+ * 1. Membuat seluruh 13 sheet tabel yang dibutuhkan sistem.
+ * 2. Memberi header kolom lengkap dengan styling Emerald Green (#064E3B) & font putih tebal.
+ * 3. Membekukan (freeze) baris header pertama.
+ * 4. Memasukkan data awal (seed) lengkap: Roles, Permissions, Role-Permissions,
+ *    Super Admin (iftahadmin), default Rooms, Member assignments, dan Settings.
+ * 5. Menambahkan menu khusus di Google Sheets "🌿 Maisya Room" untuk kemudahan eksekusi.
  */
 
+// ID Google Spreadsheet Utama
+const SPREADSHEET_ID = "1H_dZ6byEONLRbb-7kaY6UH59OTX1eOJ9aHSsHifqeQw";
+
+/**
+ * Mendapatkan referensi Spreadsheet aktif atau buka berdasarkan ID
+ */
+function getDatabaseSpreadsheet() {
+  try {
+    const active = SpreadsheetApp.getActiveSpreadsheet();
+    if (active) return active;
+  } catch (e) {
+    // Berjalan di luar konteks container spreadsheet (standalone / Web App)
+  }
+  return SpreadsheetApp.openById(SPREADSHEET_ID);
+}
+
+/**
+ * Menu otomatis saat Spreadsheet dibuka di Google Sheets UI
+ */
+function onOpen() {
+  try {
+    const ui = SpreadsheetApp.getUi();
+    ui.createMenu("🌿 Maisya Room")
+      .addItem("⚡ Inisialisasi / Buat Semua Sheet Database", "setupMaisyaChatDatabase")
+      .addSeparator()
+      .addItem("🔄 Reset / Update Header Tabel", "setupMaisyaChatDatabase")
+      .addToUi();
+  } catch (e) {
+    // Mode headless atau trigger web app
+  }
+}
+
+/**
+ * FUNGSI UTAMA: Membuat semua sheet database & mengisi seed data
+ */
 function setupMaisyaChatDatabase() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getDatabaseSpreadsheet();
   
-  Logger.log("=== Memulai Inisialisasi DB_MAISYA_CHAT ===");
+  Logger.log("=== Memulai Inisialisasi Database Maisya Chat Room ===");
+  Logger.log("Target Spreadsheet: " + ss.getName() + " (" + ss.getId() + ")");
   
-  // 1. Definisikan Schema 13 Tabel
+  // 1. Definisikan Schema 13 Tabel Lengkap
   const tables = {
     "tb_users": [
       "id_user", "nama", "kode_login", "username", "role_id", 
-      "status_aktif", "foto_url", "created_at", "updated_at"
+      "status_aktif", "foto_url", "created_at", "updated_at",
+      "approval_status", "no_wa", "keterangan"
     ],
     "tb_roles": [
       "id_role", "nama_role", "deskripsi", "status_aktif"
@@ -67,8 +103,9 @@ function setupMaisyaChatDatabase() {
     ]
   };
 
-  const headerBgColor = "#064E3B"; // Dark Emerald
+  const headerBgColor = "#064E3B"; // Dark Emerald Maisya
   const headerFontColor = "#FFFFFF";
+  const createdSheets = [];
 
   // 2. Buat atau sesuaikan setiap sheet
   for (const sheetName in tables) {
@@ -78,6 +115,7 @@ function setupMaisyaChatDatabase() {
     if (!sheet) {
       sheet = ss.insertSheet(sheetName);
       Logger.log(`+ Dibuat sheet baru: ${sheetName}`);
+      createdSheets.push(sheetName);
     } else {
       Logger.log(`* Sheet sudah ada: ${sheetName}`);
     }
@@ -97,16 +135,32 @@ function setupMaisyaChatDatabase() {
     }
   }
 
-  // Hapus Sheet1 default jika ada dan kosong
+  // Hapus Sheet1 default bawaan Google Sheets jika masih ada dan kosong
   const defaultSheet = ss.getSheetByName("Sheet1") || ss.getSheetByName("Sheet 1");
   if (defaultSheet && ss.getSheets().length > 1) {
-    try { ss.deleteSheet(defaultSheet); } catch(e) {}
+    try { 
+      if (defaultSheet.getLastRow() <= 1 && defaultSheet.getLastColumn() <= 1) {
+        ss.deleteSheet(defaultSheet); 
+        Logger.log("- Sheet1 default berhasil dibersihkan");
+      }
+    } catch(e) {}
   }
 
   // 3. Masukkan Seed Data Awal (jika tabel masih kosong)
   seedInitialData(ss);
 
-  Logger.log("=== Inisialisasi DB_MAISYA_CHAT Selesai Sukses! ===");
+  Logger.log("=== Inisialisasi Database Maisya Chat Room Sukses! ===");
+  
+  return {
+    success: true,
+    spreadsheetId: ss.getId(),
+    spreadsheetName: ss.getName(),
+    sheetsCount: Object.keys(tables).length,
+    sheets: Object.keys(tables),
+    createdSheets: createdSheets,
+    message: "Alhamdulillah! Seluruh 13 sheet database Maisya Chat Room berhasil dibuat dan siap digunakan.",
+    timestamp: new Date().toISOString()
+  };
 }
 
 /**
@@ -117,7 +171,7 @@ function seedInitialData(ss) {
 
   // 1. tb_roles
   const roleSheet = ss.getSheetByName("tb_roles");
-  if (roleSheet.getLastRow() <= 1) {
+  if (roleSheet && roleSheet.getLastRow() <= 1) {
     const roles = [
       ["ROLE_SUPERADMIN", "Super Admin", "Akses kendali penuh seluruh sistem Maisya", true],
       ["ROLE_ADMIN", "Admin", "Pengelola operasional pengguna, room, dan moderasi", true],
@@ -131,7 +185,7 @@ function seedInitialData(ss) {
 
   // 2. tb_permissions
   const permSheet = ss.getSheetByName("tb_permissions");
-  if (permSheet.getLastRow() <= 1) {
+  if (permSheet && permSheet.getLastRow() <= 1) {
     const permissions = [
       ["view_dashboard", "Lihat Dashboard Admin", "Izin membuka panel administrasi sistem"],
       ["manage_users", "Kelola Pengguna", "Tambah, edit, ganti status aktif, dan ubah kode login user"],
@@ -158,7 +212,7 @@ function seedInitialData(ss) {
 
   // 3. tb_role_permissions
   const rolePermSheet = ss.getSheetByName("tb_role_permissions");
-  if (rolePermSheet.getLastRow() <= 1) {
+  if (rolePermSheet && rolePermSheet.getLastRow() <= 1) {
     const allPerms = [
       "view_dashboard", "manage_users", "manage_roles", "manage_permissions",
       "create_room", "edit_room", "delete_room", "join_room", "send_message",
@@ -193,9 +247,9 @@ function seedInitialData(ss) {
     Logger.log("✓ Seed tb_role_permissions berhasil");
   }
 
-  // 4. tb_users (Kode Login menggunakan hash SHA-256)
+  // 4. tb_users (Super Admin Utama: iftahadmin / iftah010387)
   const userSheet = ss.getSheetByName("tb_users");
-  if (userSheet.getLastRow() <= 1) {
+  if (userSheet && userSheet.getLastRow() <= 1) {
     const users = [
       [
         "USR_ADMIN_IFTAH",
@@ -206,7 +260,10 @@ function seedInitialData(ss) {
         true,
         "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
         now,
-        now
+        now,
+        "approved",
+        "08123456789",
+        "Super Admin Utama Sistem Maisya"
       ]
     ];
     userSheet.getRange(2, 1, users.length, users[0].length).setValues(users);
@@ -215,7 +272,7 @@ function seedInitialData(ss) {
 
   // 5. tb_rooms
   const roomSheet = ss.getSheetByName("tb_rooms");
-  if (roomSheet.getLastRow() <= 1) {
+  if (roomSheet && roomSheet.getLastRow() <= 1) {
     const rooms = [
       [
         "ROOM_PENGUMUMAN",
@@ -223,7 +280,7 @@ function seedInitialData(ss) {
         "Kanal resmi pengumuman, agenda kegiatan, dan maklumat pimpinan pondok.",
         "",
         "https://images.unsplash.com/photo-1542838132-92c53300491e?w=150&auto=format&fit=crop&q=80",
-        "USR_ADMIN",
+        "USR_ADMIN_IFTAH",
         true,
         false, // Terbuka tanpa kode
         now,
@@ -235,9 +292,9 @@ function seedInitialData(ss) {
         "Koordinasi harian pengasuhan santri, ibadah, dan evaluasi asrama.",
         "MUSYRIF26",
         "https://images.unsplash.com/photo-1519452635265-7b1fbfd1e4e0?w=150&auto=format&fit=crop&q=80",
-        "USR_ADMIN",
+        "USR_ADMIN_IFTAH",
         true,
-        true, // Butuh kode
+        true, // Butuh passcode
         now,
         now
       ],
@@ -247,7 +304,7 @@ function seedInitialData(ss) {
         "Pencatatan setoran hafalan, mutaba'ah ziyadah, dan muraja'ah santri.",
         "TAHFIZH26",
         "https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=150&auto=format&fit=crop&q=80",
-        "USR_FAUZI",
+        "USR_ADMIN_IFTAH",
         true,
         true,
         now,
@@ -259,7 +316,7 @@ function seedInitialData(ss) {
         "Pelaporan fasilitas, logistik, pengadaan barang, dan administrasi umum.",
         "SARPRAS26",
         "https://images.unsplash.com/photo-1497366216548-37526070297c?w=150&auto=format&fit=crop&q=80",
-        "USR_STAFF_TU",
+        "USR_ADMIN_IFTAH",
         true,
         true,
         now,
@@ -270,16 +327,14 @@ function seedInitialData(ss) {
     Logger.log("✓ Seed tb_rooms berhasil");
   }
 
-  // 6. tb_room_members (Admin & Musyrif gabung ke Room Pengumuman & Musyrif)
+  // 6. tb_room_members
   const memberSheet = ss.getSheetByName("tb_room_members");
-  if (memberSheet.getLastRow() <= 1) {
+  if (memberSheet && memberSheet.getLastRow() <= 1) {
     const members = [
-      ["MBR_001", "ROOM_PENGUMUMAN", "USR_ADMIN", now, "active"],
-      ["MBR_002", "ROOM_PENGUMUMAN", "USR_FAUZI", now, "active"],
-      ["MBR_003", "ROOM_PENGUMUMAN", "USR_STAFF_TU", now, "active"],
-      ["MBR_004", "ROOM_PENGUMUMAN", "USR_SANTRI_ZAID", now, "active"],
-      ["MBR_005", "ROOM_MUSYRIF", "USR_ADMIN", now, "active"],
-      ["MBR_006", "ROOM_MUSYRIF", "USR_FAUZI", now, "active"]
+      ["MBR_001", "ROOM_PENGUMUMAN", "USR_ADMIN_IFTAH", now, "active"],
+      ["MBR_002", "ROOM_MUSYRIF", "USR_ADMIN_IFTAH", now, "active"],
+      ["MBR_003", "ROOM_TAHFIZH", "USR_ADMIN_IFTAH", now, "active"],
+      ["MBR_004", "ROOM_SARPRAS_TU", "USR_ADMIN_IFTAH", now, "active"]
     ];
     memberSheet.getRange(2, 1, members.length, members[0].length).setValues(members);
     Logger.log("✓ Seed tb_room_members berhasil");
@@ -287,22 +342,22 @@ function seedInitialData(ss) {
 
   // 7. tb_messages
   const msgSheet = ss.getSheetByName("tb_messages");
-  if (msgSheet.getLastRow() <= 1) {
+  if (msgSheet && msgSheet.getLastRow() <= 1) {
     const initialMessages = [
       [
         "MSG_001",
         "ROOM_PENGUMUMAN",
-        "USR_ADMIN",
+        "USR_ADMIN_IFTAH",
         "text",
-        "Ahlan wa Sahlan di Maisya Chat Room Pesantren Imam Syafi'i Brebes. Seluruh komunikasi internal terenkripsi dan tercatat rapi.",
+        "Bismillah. Ahlan wa Sahlan di Maisya Chat Room Pesantren Imam Syafi'i Brebes. Seluruh komunikasi internal terenkripsi dan tercatat rapi.",
         "", "", "", "", "", "", now, now
       ],
       [
         "MSG_002",
         "ROOM_MUSYRIF",
-        "USR_FAUZI",
+        "USR_ADMIN_IFTAH",
         "text",
-        "Bismillah, agenda mutaba'ah sholat subuh berjamaah santri pagi ini alhamdulillah tertib dan lengkap.",
+        "Assalamu'alaikum warahmatullah. Forum Musyrif & Asatidzah aktif. Mari gunakan room ini untuk koordinasi harian santri.",
         "", "", "", "", "", "", now, now
       ]
     ];
@@ -312,10 +367,11 @@ function seedInitialData(ss) {
 
   // 8. tb_settings
   const settingSheet = ss.getSheetByName("tb_settings");
-  if (settingSheet.getLastRow() <= 1) {
+  if (settingSheet && settingSheet.getLastRow() <= 1) {
     const settings = [
       ["app_name", "Maisya Chat Room", "Nama platform internal pesantren"],
       ["pesantren_name", "Pondok Pesantren Imam Syafi'i Brebes", "Lembaga induk"],
+      ["spreadsheet_id", SPREADSHEET_ID, "ID Google Spreadsheet Database"],
       ["max_upload_size_mb", "5", "Batas maksimal ukuran file gambar (MB)"],
       ["polling_interval_ms", "2500", "Interval polling aktif (milidetik)"],
       ["allow_screen_share", "true", "Status global izin fitur WebRTC screen sharing"],
@@ -331,7 +387,7 @@ function seedInitialData(ss) {
  */
 function hashPassword(plainText) {
   if (!plainText) return "";
-  const rawHash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, plainText, Utilities.Charset.UTF_8);
+  const rawHash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, plainText.toString(), Utilities.Charset.UTF_8);
   let txtHash = "";
   for (let i = 0; i < rawHash.length; i++) {
     let hashVal = rawHash[i];

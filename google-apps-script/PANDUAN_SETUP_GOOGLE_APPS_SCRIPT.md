@@ -1,87 +1,76 @@
 # Panduan Setup Google Spreadsheet & Google Apps Script (DB_MAISYA_CHAT)
 **Pondok Pesantren Imam Syafi'i Brebes - Maisya Chat Room**
 
-Dokumen ini memandu Anda langkah demi langkah dalam menghubungkan aplikasi **Maisya Chat Room** ke Google Spreadsheet asli dan men-deploy Google Apps Script sebagai Web App API.
+---
+
+### Informasi Tautan Proyek Anda:
+- **Spreadsheet ID:** `1H_dZ6byEONLRbb-7kaY6UH59OTX1eOJ9aHSsHifqeQw`
+- **Spreadsheet URL:** [Buka Google Spreadsheet](https://docs.google.com/spreadsheets/d/1H_dZ6byEONLRbb-7kaY6UH59OTX1eOJ9aHSsHifqeQw/edit)
+- **Script Project ID:** `14zzsCZBwO3nqIqKcd8BVisehmJ1pd9Z4nX8w-VccNyt0OzM2sLv9obhW`
+- **Apps Script Editor:** [Buka Google Apps Script](https://script.google.com/d/14zzsCZBwO3nqIqKcd8BVisehmJ1pd9Z4nX8w-VccNyt0OzM2sLv9obhW/edit)
+- **Production Web App API URL:**
+  ```
+  https://script.google.com/macros/s/AKfycbzOu3xkwcqRbBCP_OyOP04ZeSNYdCGou_xpJjtCt0H7l9evJ86oVjIfd3_AOnmqcxFH/exec
+  ```
 
 ---
 
-## Langkah 1: Buat Google Spreadsheet Baru
+## Status Sinkronisasi Otomatis: SUKSES ✅
 
-1. Buka browser dan kunjungi [Google Sheets](https://sheets.new).
-2. Ubah judul dokumen (di pojok kiri atas) menjadi:
-   ```
-   DB_MAISYA_CHAT
-   ```
-3. Biarkan spreadsheet dalam keadaan kosong.
+Seluruh kode backend berikut telah **otomatis diunggah (push)** langsung ke project Apps Script Anda:
+1. `setupDatabase.gs` (Fungsi `setupMaisyaChatDatabase` untuk membuat 13 sheet tabel + seed data + menu khusus)
+2. `Code.gs` (Backend API lengkap: Auth, Chat, Rooms, Drive Upload, Approval, Real-time Polling)
+3. `appsscript.json` (Konfigurasi zona waktu `Asia/Jakarta`, runtime `V8`, dan Web App Access `ANYONE_ANONYMOUS`)
+4. File `.env` pada proyek frontend lokal telah diisi dengan URL Web App produksi Anda.
 
 ---
 
-## Langkah 2: Buka Apps Script & Inisialisasi Database
+## Langkah Terakhir: Eksekusi Fungsi Pembuatan Database (1 Menit)
 
-1. Pada Google Spreadsheet tersebut, klik menu bar bagian atas:
-   **Extensions** > **Apps Script** (atau **Ekstensi** > **Apps Script**).
-2. Sebuah tab baru Google Apps Script Editor akan terbuka.
-3. Hapus kode default `function myFunction() {}`.
-4. Buka file [setupDatabase.gs](file:///c:/Users/Ponpes%20Imam%20Syafii/OneDrive/Desktop/maisya-room/google-apps-script/setupDatabase.gs) yang telah kami buat di proyek ini.
-5. Salin (**Copy**) seluruh isi kode dari file tersebut, lalu tempel (**Paste**) ke editor Apps Script.
-6. Simpan proyek dengan menekan tombol **Ctrl + S** (atau ikon disket).
-7. Di bagian toolbar atas editor Apps Script, pastikan fungsi yang terpilih adalah:
-   `setupMaisyaChatDatabase`
-8. Klik tombol **▷ Run** (Jalankan).
-9. **Otorisasi Izin:**
-   - Google akan menampilkan jendela pop-up "Authorization required". Klik **Review permissions** / **Tinjau Izin**.
+Karena Google Apps Script mewajibkan otorisasi akun pemilik saat mengakses Spreadsheet pertama kali, Anda hanya perlu menjalankan fungsi ini sekali di Google Apps Script:
+
+1. Buka Apps Script Editor Anda melalui tautan berikut:  
+   👉 **[Buka Editor Apps Script](https://script.google.com/d/14zzsCZBwO3nqIqKcd8BVisehmJ1pd9Z4nX8w-VccNyt0OzM2sLv9obhW/edit)**
+2. Pada dropdown pilihan fungsi di toolbar atas (sebelah tombol *Debug*), pilih fungsi:  
+   **`setupMaisyaChatDatabase`**
+3. Klik tombol **▷ Run** (Jalankan).
+4. **Otorisasi Izin (Hanya 1x di awal):**
+   - Jendela pop-up *"Authorization required"* akan muncul. Klik **Review permissions** / **Tinjau Izin**.
    - Pilih akun Google Anda.
-   - Jika muncul peringatan "Google hasn't verified this app", klik link kecil **Advanced** (Lanjutan) di kiri bawah, lalu klik **Go to Untitled project (unsafe)**.
+   - Jika muncul peringatan *"Google hasn't verified this app"*, klik tautan kecil **Advanced** (Lanjutan) di kiri bawah, lalu klik **Go to ... (unsafe)**.
    - Klik **Allow** (Izinkan).
-10. Tunggu beberapa detik hingga proses selesai (Execution log menampilkan `=== Inisialisasi DB_MAISYA_CHAT Selesai Sukses! ===`).
-11. Buka kembali tab Google Spreadsheet Anda: Anda akan melihat **13 sheet** lengkap (`tb_users`, `tb_roles`, `tb_rooms`, `tb_messages`, dst.) beserta header hijau emerald yang rapi dan data awal (seed).
+5. Tunggu 5-10 detik hingga Execution Log menampilkan:  
+   `=== Inisialisasi Database Maisya Chat Room Sukses! ===`
+6. Buka kembali Google Spreadsheet Anda:  
+   👉 **[Lihat Spreadsheet DB_MAISYA_CHAT](https://docs.google.com/spreadsheets/d/1H_dZ6byEONLRbb-7kaY6UH59OTX1eOJ9aHSsHifqeQw/edit)**  
+   Semua **13 sheet tabel** sudah otomatis terbuat dengan header hijau *Dark Emerald (#064E3B)*, baris pertama dibekukan, dan data awal (*seed*) telah siap!
 
 ---
 
-## Langkah 3: Pasang Backend API (`Code.gs`)
+## 13 Tabel yang Dibuat Otomatis
 
-1. Kembali ke tab Apps Script Editor.
-2. Buat file script baru dengan mengklik tanda `+` di samping tulisan **Files**, lalu pilih **Script**.
-3. Beri nama file: `Code` (atau ganti isi file `Code.gs` yang ada).
-4. Buka file [Code.gs](file:///c:/Users/Ponpes%20Imam%20Syafii/OneDrive/Desktop/maisya-room/google-apps-script/Code.gs) di proyek lokal ini.
-5. Salin (**Copy**) seluruh isinya dan tempel (**Paste**) ke file `Code.gs` di editor Apps Script.
-6. Simpan dengan menekan **Ctrl + S**.
-
----
-
-## Langkah 4: Deploy sebagai Web App
-
-1. Di pojok kanan atas editor Apps Script, klik tombol biru **Deploy** > **New deployment**.
-2. Di jendela yang muncul, klik ikon roda gigi ⚙️ di samping "Select type", lalu pilih **Web app**.
-3. Isi konfigurasi deployment:
-   - **Description**: `Maisya Chat Room API Production v1.0`
-   - **Execute as**: **Me (emailanda@gmail.com)**
-   - **Who has access**: **Anyone** *(PENTING: Pilih "Anyone" agar frontend dapat mengirim request API tanpa terbentur login Google pribadi)*.
-4. Klik tombol **Deploy**.
-5. Salin **Web app URL** yang dihasilkan.
-   Format URL biasanya:
-   `https://script.google.com/macros/s/AKfycbx.../exec`
+| No | Nama Sheet Tabel | Fungsi Utama |
+| :---: | :--- | :--- |
+| 1 | `tb_users` | Data akun pengguna, status aktif, status approval, nomor WA, dan foto |
+| 2 | `tb_roles` | Master level role (Super Admin, Admin, Musyrif, Staff, Peserta) |
+| 3 | `tb_permissions` | Master 18 izin akses granular sistem |
+| 4 | `tb_role_permissions` | Pemetaan izin default untuk tiap role |
+| 5 | `tb_user_permissions` | Override izin khusus per pengguna |
+| 6 | `tb_rooms` | Data channel percakapan (publik / kode passcode) |
+| 7 | `tb_room_members` | Daftar keanggotaan pengguna di dalam room |
+| 8 | `tb_messages` | Riwayat pesan teks dan gambar |
+| 9 | `tb_message_revisions` | Log riwayat revisi/edit pesan |
+| 10 | `tb_room_permissions` | Pengaturan izin per ruangan |
+| 11 | `tb_screen_share_sessions` | Sesi WebRTC screen sharing |
+| 12 | `tb_user_activity_logs` | Audit trail aktivitas login, room, registrasi |
+| 13 | `tb_settings` | Konfigurasi parameter sistem & Google Drive |
 
 ---
 
-## Langkah 5: Hubungkan ke Frontend Maisya Chat Room
+## Akun Login Super Admin Bawaan
 
-1. Buka file `.env` di folder utama aplikasi `maisya-room`.
-2. Tempel URL Web App yang Anda dapatkan:
-   ```env
-   VITE_GAS_API_URL=https://script.google.com/macros/s/AKfycbx.../exec
-   ```
-3. Restart development server jika sedang berjalan (`npm run dev`).
-4. Selesai! Aplikasi kini tersambung 100% secara langsung ke Google Spreadsheet `DB_MAISYA_CHAT` Anda.
-
----
-
-## Akun Admin Utama & Sistem Pendaftaran User
-
-| Nama Pengguna / Username | Password / Kode Login | Role | Keterangan |
+| Username / Nama | Password / Kode Login | Role | Keterangan |
 | :--- | :--- | :--- | :--- |
-| **iftahadmin** | `iftah010387` | Super Admin | Akses Kendali Penuh, Dashboard Admin, & Persetujuan User |
+| **iftahadmin** | `iftah010387` | Super Admin | Akses Penuh: Kelola User, Approval, Kelola Room, Dashboard Admin |
 
-> **Catatan Sistem Registrasi & Izin Admin:**
-> Seluruh pengguna baru dapat mendaftar melalui form **Daftar Akun Baru**. Setelah mendaftar, akun berstatus *Pending (Menunggu Persetujuan)*. Admin (`iftahadmin`) akan memverifikasi dan memberikan izin (*Approval*) melalui **Panel Dashboard Admin > Tab Persetujuan User** sebelum akun tersebut dapat login.
-
+> Untuk registrasi akun baru (Musyrif, Staff, Peserta), pendaftaran dapat dilakukan langsung lewat tombol **Daftar Akun Baru**. Setelah mendaftar, akun berstatus *Pending* dan dapat disetujui (Approved) oleh `iftahadmin` melalui **Dashboard Admin > Tab Persetujuan User**.

@@ -10,13 +10,16 @@ import { MockSpreadsheetBackend } from './mockBackend';
 import { ApiResponse } from '../types/api';
 import { Room } from '../types/room';
 
+export const PRODUCTION_GAS_URL = 'https://script.google.com/macros/s/AKfycbzOu3xkwcqRbBCP_OyOP04ZeSNYdCGou_xpJjtCt0H7l9evJ86oVjIfd3_AOnmqcxFH/exec';
 const CUSTOM_GAS_URL_KEY = 'maisya_custom_gas_url';
 
 export class GasClient {
   static getBaseUrl(): string {
     const custom = localStorage.getItem(CUSTOM_GAS_URL_KEY);
     if (custom && custom.trim() !== '') return custom.trim();
-    return (import.meta.env.VITE_GAS_API_URL || '').trim();
+    const envUrl = (import.meta.env.VITE_GAS_API_URL || '').trim();
+    if (envUrl && envUrl.startsWith('http')) return envUrl;
+    return PRODUCTION_GAS_URL;
   }
 
   static setBaseUrl(url: string): void {
@@ -27,22 +30,73 @@ export class GasClient {
     }
   }
 
+  static resetToDefaultUrl(): string {
+    localStorage.removeItem(CUSTOM_GAS_URL_KEY);
+    return PRODUCTION_GAS_URL;
+  }
+
   static isMockMode(): boolean {
-    const url = this.getBaseUrl();
-    return !url || !url.startsWith('http');
+    // Mode Simulator Lokal Dinonaktifkan: Selalu gunakan Google Apps Script Web App Online
+    return false;
+  }
+
+  private static getStoredToken(): string | undefined {
+    try {
+      const t = localStorage.getItem('maisya_auth_token');
+      return t && t.trim() ? t.trim() : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  static async ping(): Promise<{ success: boolean; message?: string; timestamp?: string; latencyMs?: number; error?: string }> {
+    const baseUrl = this.getBaseUrl();
+    const start = performance.now();
+    try {
+      const res = await fetch(`${baseUrl}?action=ping`, { cache: 'no-store' });
+      const latencyMs = Math.round(performance.now() - start);
+      if (!res.ok) {
+        return { success: false, latencyMs, error: `HTTP ${res.status}: ${res.statusText}` };
+      }
+      const data = await res.json();
+      return {
+        success: !!data.success,
+        message: data.message || 'Google Apps Script Web App online dan aktif.',
+        timestamp: data.timestamp || new Date().toISOString(),
+        latencyMs,
+        error: data.error
+      };
+    } catch (err: any) {
+      const latencyMs = Math.round(performance.now() - start);
+      return {
+        success: false,
+        latencyMs,
+        error: err.message || 'Gagal menghubungi Google Apps Script Web App online.'
+      };
+    }
   }
 
   private static async request<T = any>(action: string, payload: any = {}, method: 'GET' | 'POST' = 'POST'): Promise<ApiResponse<T>> {
     const baseUrl = this.getBaseUrl();
 
-    if (this.isMockMode()) {
-      return this.dispatchMock(action, payload);
-    }
-
     try {
+      const activeToken = payload.token || this.getStoredToken();
+      const finalPayload = { action, ...payload };
+      if (activeToken && !finalPayload.token) {
+        finalPayload.token = activeToken;
+      }
+
       if (method === 'GET') {
-        const query = new URLSearchParams({ action, ...payload }).toString();
-        const res = await fetch(`${baseUrl}?${query}`);
+        const queryParams = new URLSearchParams();
+        Object.entries(finalPayload).forEach(([k, v]) => {
+          if (v !== undefined && v !== null) {
+            queryParams.append(k, String(v));
+          }
+        });
+        const res = await fetch(`${baseUrl}?${queryParams.toString()}`);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
         return await res.json();
       } else {
         const res = await fetch(baseUrl, {
@@ -50,14 +104,19 @@ export class GasClient {
           headers: {
             'Content-Type': 'text/plain;charset=utf-8' // Hindari masalah preflight CORS yang ketat di GAS
           },
-          body: JSON.stringify({ action, ...payload })
+          body: JSON.stringify(finalPayload)
         });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
         return await res.json();
       }
     } catch (err: any) {
-      console.warn(`[GAS Client Error: ${action}] Mengalihkan ke Simulator Spreadsheet Lokal:`, err);
-      // Fallback ke simulator lokal jika request jaringan Google Apps Script gagal
-      return this.dispatchMock(action, payload);
+      console.error(`[GAS Online Client Error: ${action}]`, err);
+      return {
+        success: false,
+        error: err.message || `Terjadi kesalahan saat memproses ${action} pada server Google Apps Script.`
+      };
     }
   }
 
@@ -305,5 +364,9 @@ export class GasClient {
 
   static async getActivityLogs(limit?: number, token?: string) {
     return this.request('getActivityLogs', { limit, token }, 'GET');
+  }
+
+  static async getAdminDashboardBundle(userId?: string, token?: string) {
+    return this.request('getAdminDashboardBundle', { userId, token }, 'GET');
   }
 }
