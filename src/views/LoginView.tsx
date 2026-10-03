@@ -23,7 +23,7 @@ import confetti from 'canvas-confetti';
 import { PwaInstallButton } from '../components/common/PwaInstallButton';
 
 export const LoginView: React.FC = () => {
-  const { login, register, isLoading } = useAuth();
+  const { login, completeLogin, register, isLoading } = useAuth();
 
   // Tab mode: 'login' | 'register'
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -34,6 +34,7 @@ export const LoginView: React.FC = () => {
   const [loginError, setLoginError] = useState('');
   const [rememberPassword, setRememberPassword] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [enteringUser, setEnteringUser] = useState<any>(null);
   const [showPassword, setShowPassword] = useState(false);
 
   // Status check state
@@ -88,7 +89,7 @@ export const LoginView: React.FC = () => {
     setLoginError('');
     setIsSubmitting(true);
     const res = await login(nama.trim(), kodeLogin.trim());
-    if (res.success) {
+    if (res.success && res.user && res.token) {
       if (rememberPassword) {
         localStorage.setItem('maisya_remember_pass', 'true');
         localStorage.setItem('maisya_saved_user', nama.trim());
@@ -99,13 +100,21 @@ export const LoginView: React.FC = () => {
         localStorage.removeItem('maisya_saved_pass');
       }
 
+      setEnteringUser(res.user);
+
       try {
         confetti({
-          particleCount: 70,
-          spread: 60,
-          origin: { y: 0.7 }
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#10b981', '#34d399', '#059669', '#38bdf8']
         });
       } catch (e) {}
+
+      // Tampilkan animasi transisi masuk aplikasi selama 1.2 detik
+      setTimeout(() => {
+        completeLogin(res.user!, res.token!, res.permissions || {});
+      }, 1200);
     } else {
       setIsSubmitting(false);
       setLoginError(res.error || 'Login gagal. Periksa kembali username/nama dan password Anda.');
@@ -638,6 +647,46 @@ export const LoginView: React.FC = () => {
           <span>Single Source of Truth: Google Spreadsheet DB_MAISYA_CHAT</span>
         </p>
       </div>
+
+      {/* Fullscreen Animated Login Transition / "Masuk Aplikasi" */}
+      {enteringUser && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-md text-white select-none">
+          <div className="relative flex flex-col items-center max-w-sm px-6 text-center">
+            {/* Ambient Radial Glow */}
+            <div className="absolute -inset-10 bg-emerald-500/25 rounded-full blur-3xl animate-pulse pointer-events-none" />
+
+            {/* Glowing Icon with Ping Halo & Orbital Spin */}
+            <div className="relative mb-5 flex items-center justify-center">
+              <div className="absolute -inset-3 rounded-full bg-emerald-400/40 animate-ping opacity-40" />
+              <div className="absolute -inset-2 rounded-full border border-dashed border-emerald-400 animate-spin-reverse opacity-70" />
+              <div className="relative w-16 h-16 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-xl shadow-emerald-500/40 z-10">
+                <CheckCircle2 className="w-9 h-9 text-white animate-bounce" />
+              </div>
+            </div>
+
+            <h3 className="text-xl font-bold text-white tracking-wide">
+              Ahlan wa Sahlan!
+            </h3>
+            <p className="text-emerald-400 font-bold text-sm mt-1">
+              {enteringUser.nama || enteringUser.username}
+            </p>
+            <p className="text-xs text-slate-400 mt-2">
+              Login berhasil! Memasuki Maisya Chat Room...
+            </p>
+
+            {/* Animated Loading Shimmer Bar */}
+            <div className="mt-5 w-48 h-1.5 bg-slate-800 rounded-full overflow-hidden relative shadow-inner">
+              <div className="absolute inset-y-0 bg-gradient-to-r from-emerald-500 via-teal-300 to-emerald-500 rounded-full w-24 animate-shimmer-progress shadow-md shadow-emerald-500/50" />
+            </div>
+
+            <div className="flex items-center gap-1.5 mt-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:-0.3s]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-bounce [animation-delay:-0.15s]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

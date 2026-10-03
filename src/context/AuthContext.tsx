@@ -8,7 +8,8 @@ interface AuthContextType {
   token: string | null;
   permissions: PermissionMap;
   isLoading: boolean;
-  login: (nama: string, kodeLogin: string) => Promise<{ success: boolean; error?: string }>;
+  login: (nama: string, kodeLogin: string) => Promise<{ success: boolean; error?: string; user?: User; token?: string; permissions?: PermissionMap }>;
+  completeLogin: (user: User, token: string, permissions: PermissionMap) => void;
   register: (data: { nama: string; username: string; kodeLogin: string; roleId?: string; noWa?: string; keterangan?: string }) => Promise<{ success: boolean; message?: string; error?: string }>;
   logout: () => void;
   can: (permission: PermissionKey | string) => boolean;
@@ -71,6 +72,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
+  const completeLogin = (userData: User, tokenStr: string, perms: PermissionMap) => {
+    setUser(userData);
+    setToken(tokenStr);
+    setPermissions(perms);
+    localStorage.setItem(TOKEN_KEY, tokenStr);
+  };
+
   const login = async (nama: string, kodeLogin: string) => {
     try {
       const res = await GasClient.login(nama, kodeLogin);
@@ -80,11 +88,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return { success: false, error: 'Akun admin lama (iftahadmin) sudah dinonaktifkan. Silakan gunakan kredensial admin yang baru.' };
         }
 
-        setUser(res.user);
-        setToken(res.token);
-        setPermissions(res.permissions || {});
-        localStorage.setItem(TOKEN_KEY, res.token);
-        return { success: true };
+        return {
+          success: true,
+          user: res.user,
+          token: res.token,
+          permissions: res.permissions || {}
+        };
       } else {
         return { success: false, error: res.error || 'Login gagal. Periksa kembali nama dan kode Anda.' };
       }
@@ -174,6 +183,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         permissions,
         isLoading,
         login,
+        completeLogin,
         register,
         logout,
         can,

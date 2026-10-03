@@ -184,3 +184,22 @@ html.light .wallpaper-doodle {
 .animate-pulse-subtle {
   animation: pulseSubtle 3s ease-in-out infinite;
 }
+
+@keyframes shimmerProgress {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(50%); }
+  100% { transform: translateX(200%); }
+}
+
+@keyframes spinReverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+.animate-spin-reverse {
+  animation: spinReverse 6s linear infinite;
+}
+
+.animate-shimmer-progress {
+  animation: shimmerProgress 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
