@@ -56,8 +56,16 @@ export const LoginView: React.FC = () => {
     const isRemembered = localStorage.getItem('maisya_remember_pass') !== 'false';
     setRememberPassword(isRemembered);
 
-    const savedUser = localStorage.getItem('maisya_saved_user');
-    const savedPass = localStorage.getItem('maisya_saved_pass');
+    let savedUser = localStorage.getItem('maisya_saved_user');
+    let savedPass = localStorage.getItem('maisya_saved_pass');
+
+    // Hapus paksa jika yang tersimpan di memori peramban adalah iftahadmin (sisa cache versi lama)
+    if (savedUser === 'iftahadmin' || savedUser === 'adminmaisyaroom') {
+      savedUser = null;
+      savedPass = null;
+      localStorage.removeItem('maisya_saved_user');
+      localStorage.removeItem('maisya_saved_pass');
+    }
 
     if (savedUser) {
       setNama(savedUser);
