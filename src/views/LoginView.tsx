@@ -33,6 +33,7 @@ export const LoginView: React.FC = () => {
   const [kodeLogin, setKodeLogin] = useState('');
   const [loginError, setLoginError] = useState('');
   const [rememberPassword, setRememberPassword] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   // Status check state
@@ -85,9 +86,9 @@ export const LoginView: React.FC = () => {
     if (!nama.trim() || !kodeLogin.trim()) return;
 
     setLoginError('');
+    setIsSubmitting(true);
     const res = await login(nama.trim(), kodeLogin.trim());
     if (res.success) {
-      // Simpan atau hapus kredensial sesuai pilihan "Ingat Password Saya"
       if (rememberPassword) {
         localStorage.setItem('maisya_remember_pass', 'true');
         localStorage.setItem('maisya_saved_user', nama.trim());
@@ -106,6 +107,7 @@ export const LoginView: React.FC = () => {
         });
       } catch (e) {}
     } else {
+      setIsSubmitting(false);
       setLoginError(res.error || 'Login gagal. Periksa kembali username/nama dan password Anda.');
     }
   };
@@ -133,6 +135,7 @@ export const LoginView: React.FC = () => {
 
     setRegError('');
     setRegSuccessMessage('');
+    setIsSubmitting(true);
 
     const res = await register({
       nama: regNama.trim(),
@@ -142,6 +145,8 @@ export const LoginView: React.FC = () => {
       noWa: regNoWa.trim(),
       keterangan: regKeterangan.trim()
     });
+
+    setIsSubmitting(false);
 
     if (res.success) {
       try {
@@ -315,11 +320,17 @@ export const LoginView: React.FC = () => {
 
                 <button
                   type="submit"
-                  disabled={isLoading || !nama.trim() || !kodeLogin.trim()}
+                  disabled={isSubmitting || !nama.trim() || !kodeLogin.trim()}
                   className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  <span>{isLoading ? 'Memverifikasi...' : 'Masuk ke Maisya Room'}</span>
-                  <ArrowRight className="w-4 h-4" />
+                  {isSubmitting ? (
+                    <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <span>Masuk ke Maisya Room</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </form>
 
@@ -581,11 +592,20 @@ export const LoginView: React.FC = () => {
 
                 <button
                   type="submit"
-                  disabled={isLoading || !regNama.trim() || !regUsername.trim() || !regKode.trim()}
+                  disabled={isSubmitting || !regNama.trim() || !regUsername.trim() || !regKode.trim()}
                   className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/60 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  <UserPlus className="w-4 h-4" />
-                  <span>{isLoading ? 'Mengirim Pendaftaran...' : 'Kirim Pendaftaran ke Admin'}</span>
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                      <span>Mengirim Pendaftaran...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4 h-4" />
+                      <span>Kirim Pendaftaran ke Admin</span>
+                    </>
+                  )}
                 </button>
               </form>
 

@@ -72,7 +72,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user]);
 
   const login = async (nama: string, kodeLogin: string) => {
-    setIsLoading(true);
     try {
       const res = await GasClient.login(nama, kodeLogin);
       if (res.success && res.token && res.user) {
@@ -91,13 +90,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (err: any) {
       return { success: false, error: err.message || 'Terjadi kesalahan saat menghubungi server.' };
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const register = async (data: { nama: string; username: string; kodeLogin: string; roleId?: string; noWa?: string; keterangan?: string }) => {
-    setIsLoading(true);
     try {
       const res = await GasClient.registerUser(data);
       if (res.success) {
@@ -107,8 +103,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (err: any) {
       return { success: false, error: err.message || 'Terjadi kesalahan saat pendaftaran.' };
-    } finally {
-      setIsLoading(false);
     }
   };
 
