@@ -63,11 +63,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth();
   }, []);
 
+  // Force logout jika mendeteksi penggunaan akun admin lama (iftahadmin)
+  useEffect(() => {
+    if (user && (user.username.toLowerCase() === 'iftahadmin' || user.nama.toLowerCase() === 'iftahadmin')) {
+      logout();
+      window.location.reload();
+    }
+  }, [user]);
+
   const login = async (nama: string, kodeLogin: string) => {
     setIsLoading(true);
     try {
       const res = await GasClient.login(nama, kodeLogin);
       if (res.success && res.token && res.user) {
+        // Blokir login jika menggunakan akun admin lama
+        if (res.user.username.toLowerCase() === 'iftahadmin' || res.user.nama.toLowerCase() === 'iftahadmin') {
+          return { success: false, error: 'Akun admin lama (iftahadmin) sudah dinonaktifkan. Silakan gunakan kredensial admin yang baru.' };
+        }
+
         setUser(res.user);
         setToken(res.token);
         setPermissions(res.permissions || {});
