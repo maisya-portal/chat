@@ -3,6 +3,7 @@ import { Message } from '../../types/message';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { Avatar } from '../common/Avatar';
+import { LinkifiedText } from '../common/LinkifiedText';
 import { formatMessageTime } from '../../utils/dateUtils';
 import { 
   Copy, 
@@ -166,10 +167,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 </button>
               </div>
             </div>
-          ) : (
+          ) : isDeleted ? (
             <p className="whitespace-pre-wrap break-words leading-relaxed select-text">
               {message.content}
             </p>
+          ) : (
+            <LinkifiedText text={message.content} isOwn={isOwn} />
           )}
 
           {/* Metadata Footer: Time, Edited Badge, Status */}

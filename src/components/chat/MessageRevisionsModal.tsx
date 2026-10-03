@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Modal } from '../common/Modal';
+import { LinkifiedText } from '../common/LinkifiedText';
 import { MessageRevision } from '../../types/message';
 import { GasClient } from '../../api/gasClient';
 import { History, Clock, User as UserIcon } from 'lucide-react';
@@ -67,7 +68,7 @@ export const MessageRevisionsModal: React.FC<MessageRevisionsModalProps> = ({
                 </span>
               </div>
               <div className="p-2.5 rounded-lg bg-slate-900/70 border border-slate-700/40 text-slate-300 font-mono text-xs whitespace-pre-wrap">
-                {rev.old_content}
+                <LinkifiedText text={rev.old_content} isOwn={false} />
               </div>
             </div>
           ))}
