@@ -128,48 +128,52 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // --- SMART ADAPTIVE DELTA POLLING ---
   const lastPollRef = useRef<string>(new Date().toISOString());
 
+  // 1. Polling untuk pesan di Room yang aktif
   useEffect(() => {
     if (!activeRoom || !user) return;
 
     let isSubscribed = true;
-    let pollIntervalMs = 2500; // 2.5 detik saat tab aktif
+    let pollIntervalMs = 1500; // 1.5 detik saat tab aktif (lebih cepat seperti WA)
     let timer: any = null;
 
     const runPoll = async () => {
-      // Jika tab tidak aktif (background), perlambat polling ke 8 detik
+      // Jika tab tidak aktif (background), perlambat polling ke 6 detik
       if (document.hidden) {
-        pollIntervalMs = 8000;
+        pollIntervalMs = 6000;
       } else {
-        pollIntervalMs = 2500;
+        pollIntervalMs = 1500;
       }
 
       try {
         const since = lastPollRef.current;
         const res = await GasClient.getLatestMessages(activeRoom.id_room, since, token || undefined);
         
-        if (isSubscribed && res.success && res.messages && res.messages.length > 0) {
+        if (isSubscribed && res.success) {
+          // Selalu update waktu terakhir polling agar tidak menarik data lama berulang kali
           lastPollRef.current = new Date().toISOString();
 
-          setMessages(prev => {
-            const map = new Map<string, Message>();
-            prev.forEach(m => map.set(m.id_message, m));
+          if (res.messages && res.messages.length > 0) {
+            setMessages(prev => {
+              const map = new Map<string, Message>();
+              prev.forEach(m => map.set(m.id_message, m));
 
-            let hasNewIncoming = false;
-            res.messages.forEach((newMsg: Message) => {
-              if (!map.has(newMsg.id_message) && newMsg.id_user !== user.id_user) {
-                hasNewIncoming = true;
+              let hasNewIncoming = false;
+              res.messages.forEach((newMsg: Message) => {
+                if (!map.has(newMsg.id_message) && newMsg.id_user !== user.id_user) {
+                  hasNewIncoming = true;
+                }
+                map.set(newMsg.id_message, newMsg);
+              });
+
+              if (hasNewIncoming) {
+                sounds.playMessageReceived();
               }
-              map.set(newMsg.id_message, newMsg);
+
+              return Array.from(map.values()).sort(
+                (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              );
             });
-
-            if (hasNewIncoming) {
-              sounds.playMessageReceived();
-            }
-
-            return Array.from(map.values()).sort(
-              (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-            );
-          });
+          }
         }
       } catch (err) {
         // Silent error on polling to avoid user disruption
@@ -188,6 +192,37 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (timer) clearTimeout(timer);
     };
   }, [activeRoom, user, token]);
+
+  // 2. Polling untuk daftar Room (Sidebar) agar selalu terupdate seperti WA
+  useEffect(() => {
+    if (!user) return;
+
+    let isSubscribed = true;
+    let timer: any = null;
+
+    const runRoomPoll = async () => {
+      try {
+        const res = await GasClient.getRooms(user.id_user, token || undefined);
+        if (isSubscribed && res.success && res.rooms) {
+          // Gunakan setRooms dengan state prev untuk mencegah re-render jika data tidak berubah (optimalisasi bisa ditambahkan)
+          setRooms(res.rooms);
+        }
+      } catch (e) {
+        // Silent error
+      }
+      
+      if (isSubscribed) {
+        timer = setTimeout(runRoomPoll, 5000); // Polling daftar room tiap 5 detik
+      }
+    };
+
+    timer = setTimeout(runRoomPoll, 5000);
+
+    return () => {
+      isSubscribed = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [user, token]);
 
   // Send Text Message (Optimistic UI)
   const sendMessage = async (content: string): Promise<boolean> => {
