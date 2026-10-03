@@ -62,14 +62,13 @@ export const LoginView: React.FC = () => {
     if (savedUser) {
       setNama(savedUser);
     } else {
-      // Saran default untuk kemudahan testing admin
-      setNama('iftahadmin');
+      setNama('');
     }
 
     if (isRemembered && savedPass) {
       setKodeLogin(savedPass);
-    } else if (isRemembered && !savedPass && (!savedUser || savedUser === 'iftahadmin')) {
-      setKodeLogin('iftah010387');
+    } else if (isRemembered && !savedPass) {
+      setKodeLogin('');
     }
   }, []);
 
@@ -145,7 +144,7 @@ export const LoginView: React.FC = () => {
         });
       } catch (e) {}
       setRegSuccessMessage(
-        res.message || 'Pendaftaran berhasil dikirim! Silakan menunggu persetujuan (approval) dari Admin (iftahadmin).'
+        res.message || 'Pendaftaran berhasil dikirim! Silakan menunggu persetujuan (approval) dari Admin (adminmaisyaroom).'
       );
       // Reset form
       setRegNama('');
@@ -261,7 +260,7 @@ export const LoginView: React.FC = () => {
                     type="text"
                     value={nama}
                     onChange={(e) => setNama(e.target.value)}
-                    placeholder="Contoh: iftahadmin atau nama Anda"
+                    placeholder="Contoh: zaid_santri atau nama Anda"
                     required
                     className="w-full px-4 py-3 bg-slate-900/80 border border-slate-700/80 rounded-xl text-white text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder-slate-500"
                   />
@@ -304,19 +303,6 @@ export const LoginView: React.FC = () => {
                     />
                     <span className="font-medium text-slate-200">Ingat password saya</span>
                   </label>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNama('iftahadmin');
-                      setKodeLogin('iftah010387');
-                      setRememberPassword(true);
-                    }}
-                    className="text-[11px] text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-1 font-mono font-semibold self-start sm:self-auto cursor-pointer"
-                  >
-                    <Sparkles className="w-3 h-3 text-amber-400" />
-                    <span>Isi Akun Admin</span>
-                  </button>
                 </div>
 
                 <button
@@ -413,10 +399,10 @@ export const LoginView: React.FC = () => {
 
                             <p className="text-[11px] text-slate-300 leading-relaxed">
                               {checkResult.user.approval_status === 'approved'
-                                ? 'Selamat! Akun Anda telah disetujui oleh Admin (iftahadmin). Anda sekarang sudah dapat login.'
+                                ? 'Selamat! Akun Anda telah disetujui oleh Admin (adminmaisyaroom). Anda sekarang sudah dapat login.'
                                 : checkResult.user.approval_status === 'rejected'
                                 ? 'Pendaftaran akun Anda ditolak oleh admin. Silakan hubungi pengurus pesantren.'
-                                : 'Pendaftaran Anda telah tersimpan di database dan sedang menunggu persetujuan (approval) dari Admin (iftahadmin).'}
+                                : 'Pendaftaran Anda telah tersimpan di database dan sedang menunggu persetujuan (approval) dari Admin (adminmaisyaroom).'}
                             </p>
 
                             {checkResult.user.approval_status === 'approved' && (
@@ -464,7 +450,7 @@ export const LoginView: React.FC = () => {
                 <div className="leading-relaxed">
                   <p className="font-semibold text-amber-300">Persetujuan Diperlukan</p>
                   <p className="text-amber-200/90 text-[11px] mt-0.5">
-                    Setelah mendaftar, akun Anda harus <strong>disetujui (diberi izin)</strong> oleh Admin (<span className="font-mono text-white">iftahadmin</span>) sebelum Anda dapat login ke ruang chat.
+                    Setelah mendaftar, akun Anda harus <strong>disetujui (diberi izin)</strong> oleh Admin (<span className="font-mono text-white">adminmaisyaroom</span>) sebelum Anda dapat login ke ruang chat.
                   </p>
                 </div>
               </div>

@@ -73,9 +73,9 @@ interface RawUser extends User {
 const INITIAL_USERS: RawUser[] = [
   {
     id_user: 'USR_ADMIN_IFTAH',
-    nama: 'iftahadmin',
-    kode_login: 'iftah010387',
-    username: 'iftahadmin',
+    nama: 'adminmaisyaroom',
+    kode_login: 'iftahadmin010387',
+    username: 'adminmaisyaroom',
     role_id: 'ROLE_SUPERADMIN',
     status_aktif: true,
     approval_status: 'approved',
@@ -125,18 +125,18 @@ export function getUsersStore(): RawUser[] {
     u.kode_login !== 'SANTRI2026'
   );
 
-  // Pastikan akun utama iftahadmin selalu aktif dan memiliki password iftah010387
+  // Pastikan akun utama adminmaisyaroom selalu aktif dan memiliki password iftahadmin010387
   let admin = users.find(u => 
-    u.username?.toLowerCase() === 'iftahadmin' || 
-    u.nama?.toLowerCase() === 'iftahadmin'
+    u.username?.toLowerCase() === 'adminmaisyaroom' || 
+    u.nama?.toLowerCase() === 'adminmaisyaroom'
   );
 
   if (!admin) {
     admin = {
       id_user: 'USR_ADMIN_IFTAH',
-      nama: 'iftahadmin',
-      kode_login: 'iftah010387',
-      username: 'iftahadmin',
+      nama: 'adminmaisyaroom',
+      kode_login: 'iftahadmin010387',
+      username: 'adminmaisyaroom',
       role_id: 'ROLE_SUPERADMIN',
       status_aktif: true,
       approval_status: 'approved',
@@ -145,7 +145,7 @@ export function getUsersStore(): RawUser[] {
     };
     users.unshift(admin);
   } else {
-    admin.kode_login = 'iftah010387';
+    admin.kode_login = 'iftahadmin010387';
     admin.role_id = 'ROLE_SUPERADMIN';
     admin.status_aktif = true;
     admin.approval_status = 'approved';
@@ -213,8 +213,8 @@ const INITIAL_ROOMS: Room[] = [
 ];
 
 const INITIAL_MEMBERS: RoomMember[] = [
-  { id_member: 'MBR_001', id_room: 'ROOM_PENGUMUMAN', id_user: 'USR_ADMIN_IFTAH', nama: 'iftahadmin', username: 'iftahadmin', role_nama: 'Super Admin', joined_at: new Date(Date.now() - 86400000).toISOString(), status: 'active' },
-  { id_member: 'MBR_002', id_room: 'ROOM_MUSYRIF', id_user: 'USR_ADMIN_IFTAH', nama: 'iftahadmin', username: 'iftahadmin', role_nama: 'Super Admin', joined_at: new Date(Date.now() - 86400000).toISOString(), status: 'active' },
+  { id_member: 'MBR_001', id_room: 'ROOM_PENGUMUMAN', id_user: 'USR_ADMIN_IFTAH', nama: 'adminmaisyaroom', username: 'adminmaisyaroom', role_nama: 'Super Admin', joined_at: new Date(Date.now() - 86400000).toISOString(), status: 'active' },
+  { id_member: 'MBR_002', id_room: 'ROOM_MUSYRIF', id_user: 'USR_ADMIN_IFTAH', nama: 'adminmaisyaroom', username: 'adminmaisyaroom', role_nama: 'Super Admin', joined_at: new Date(Date.now() - 86400000).toISOString(), status: 'active' },
 ];
 
 const INITIAL_MESSAGES: Message[] = [
@@ -222,10 +222,10 @@ const INITIAL_MESSAGES: Message[] = [
     id_message: 'MSG_001',
     id_room: 'ROOM_PENGUMUMAN',
     id_user: 'USR_ADMIN_IFTAH',
-    nama_pengirim: 'iftahadmin',
+    nama_pengirim: 'adminmaisyaroom',
     foto_pengirim: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     message_type: 'text',
-    content: "Assalamu'alaikum Warahmatullahi Wabarakatuh. Ahlan wa Sahlan di Maisya Chat Room Pesantren Imam Syafi'i Brebes. Akun Admin resmi: iftahadmin.",
+    content: "Assalamu'alaikum Warahmatullahi Wabarakatuh. Ahlan wa Sahlan di Maisya Chat Room Pesantren Imam Syafi'i Brebes. Akun Admin resmi: adminmaisyaroom.",
     created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
     status: 'sent'
   }
@@ -281,7 +281,7 @@ export class MockSpreadsheetBackend {
     if (user.approval_status === 'pending') {
       return { 
         success: false, 
-        error: 'Pendaftaran akun Anda masih MENUNGGU PERSETUJUAN (Approval) dari Admin (iftahadmin). Silakan hubungi admin untuk aktivasi.' 
+        error: 'Pendaftaran akun Anda masih MENUNGGU PERSETUJUAN (Approval) dari Admin (adminmaisyaroom). Silakan hubungi admin untuk aktivasi.' 
       };
     }
 
@@ -818,7 +818,7 @@ export class MockSpreadsheetBackend {
 
     return {
       success: true,
-      message: 'Pendaftaran berhasil dikirim! Akun Anda sedang menunggu persetujuan (approval) dari Admin (iftahadmin).'
+      message: 'Pendaftaran berhasil dikirim! Akun Anda sedang menunggu persetujuan (approval) dari Admin (adminmaisyaroom).'
     };
   }
 
@@ -945,8 +945,8 @@ export class MockSpreadsheetBackend {
   }
 
   static deleteUser(userId: string) {
-    if (userId === 'USR_ADMIN_IFTAH' || userId.toLowerCase() === 'iftahadmin') {
-      return { success: false, error: 'Akun Super Admin Utama (iftahadmin) tidak dapat dihapus demi keamanan sistem.' };
+    if (userId === 'USR_ADMIN_IFTAH' || userId.toLowerCase() === 'adminmaisyaroom') {
+      return { success: false, error: 'Akun Super Admin Utama (adminmaisyaroom) tidak dapat dihapus demi keamanan sistem.' };
     }
 
     let users = getUsersStore();
@@ -1094,3 +1094,4 @@ export class MockSpreadsheetBackend {
     return { success: true, logs: logs.slice(0, limit) };
   }
 }
+
