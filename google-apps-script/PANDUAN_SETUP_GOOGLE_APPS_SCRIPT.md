@@ -71,6 +71,9 @@ Karena Google Apps Script mewajibkan otorisasi akun pemilik saat mengakses Sprea
 
 | Username / Nama | Password / Kode Login | Role | Keterangan |
 | :--- | :--- | :--- | :--- |
-| **iftahadmin** | `iftah010387` | Super Admin | Akses Penuh: Kelola User, Approval, Kelola Room, Dashboard Admin |
+| **adminmaisyaroom** | `iftahadmin010387` | Super Admin | Akses Penuh: Kelola User, Approval, Kelola Room, Dashboard Admin |
 
-> Untuk registrasi akun baru (Musyrif, Staff, Peserta), pendaftaran dapat dilakukan langsung lewat tombol **Daftar Akun Baru**. Setelah mendaftar, akun berstatus *Pending* dan dapat disetujui (Approved) oleh `iftahadmin` melalui **Dashboard Admin > Tab Persetujuan User**.
+> Untuk registrasi akun baru (Musyrif, Staff, Peserta), pendaftaran dapat dilakukan langsung lewat tombol **Daftar Akun Baru**. Setelah mendaftar, akun berstatus *Pending* dan dapat disetujui (Approved) oleh `adminmaisyaroom` melalui **Dashboard Admin > Tab Persetujuan User**.
+
+> **Catatan:** Fungsi `setupMaisyaChatDatabase` kini **selalu melakukan upsert** akun admin utama. Jika data akun lama (iftahadmin) masih ada di Spreadsheet, akan otomatis diperbarui ke kredensial baru di atas.
+

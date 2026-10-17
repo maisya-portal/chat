@@ -10,7 +10,7 @@
  * 2. Memberi header kolom lengkap dengan styling Emerald Green (#064E3B) & font putih tebal.
  * 3. Membekukan (freeze) baris header pertama.
  * 4. Memasukkan data awal (seed) lengkap: Roles, Permissions, Role-Permissions,
- *    Super Admin (iftahadmin), default Rooms, Member assignments, dan Settings.
+ *    Super Admin (adminmaisyaroom), default Rooms, Member assignments, dan Settings.
  * 5. Menambahkan menu khusus di Google Sheets "🌿 Maisya Room" untuk kemudahan eksekusi.
  */
 
@@ -247,27 +247,80 @@ function seedInitialData(ss) {
     Logger.log("✓ Seed tb_role_permissions berhasil");
   }
 
-  // 4. tb_users (Super Admin Utama: iftahadmin / iftah010387)
+  // 4. tb_users - Selalu upsert akun Super Admin utama (adminmaisyaroom)
+  // Ini memastikan akun admin selalu ada & kredensialnya selalu benar,
+  // bahkan jika tabel sudah berisi data pengguna lain.
   const userSheet = ss.getSheetByName("tb_users");
-  if (userSheet && userSheet.getLastRow() <= 1) {
-    const users = [
-      [
-        "USR_ADMIN_IFTAH",
-        "iftahadmin",
-        hashPassword("iftah010387"),
-        "iftahadmin",
-        "ROLE_SUPERADMIN",
-        true,
-        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-        now,
-        now,
-        "approved",
-        "08123456789",
+  if (userSheet) {
+    const ADMIN_ID        = "USR_ADMIN_IFTAH";
+    const ADMIN_NAMA      = "adminmaisyaroom";
+    const ADMIN_PASSWORD  = "iftahadmin010387";
+    const ADMIN_USERNAME  = "adminmaisyaroom";
+    const ADMIN_ROLE      = "ROLE_SUPERADMIN";
+    const ADMIN_FOTO      = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80";
+    const ADMIN_PHONE     = "08123456789";
+
+    const lastRow = userSheet.getLastRow();
+
+    if (lastRow <= 1) {
+      // Tabel kosong → seed baris baru
+      const newRow = [
+        ADMIN_ID, ADMIN_NAMA, hashPassword(ADMIN_PASSWORD), ADMIN_USERNAME,
+        ADMIN_ROLE, true, ADMIN_FOTO, now, now, "approved", ADMIN_PHONE,
         "Super Admin Utama Sistem Maisya"
-      ]
-    ];
-    userSheet.getRange(2, 1, users.length, users[0].length).setValues(users);
-    Logger.log("✓ Seed tb_users berhasil");
+      ];
+      userSheet.getRange(2, 1, 1, newRow.length).setValues([newRow]);
+      Logger.log("✓ Seed tb_users: akun adminmaisyaroom berhasil dibuat.");
+    } else {
+      // Tabel sudah berisi data → cari baris admin dan update atau tambah
+      const headers = userSheet.getRange(1, 1, 1, userSheet.getLastColumn()).getValues()[0];
+      const allValues = userSheet.getRange(2, 1, lastRow - 1, userSheet.getLastColumn()).getValues();
+
+      const idCol       = headers.indexOf("id_user");
+      const namaCol     = headers.indexOf("nama");
+      const passCol     = headers.indexOf("kode_login");
+      const userCol     = headers.indexOf("username");
+      const roleCol     = headers.indexOf("role_id");
+      const aktifCol    = headers.indexOf("status_aktif");
+      const fotoCol     = headers.indexOf("foto_url");
+      const updCol      = headers.indexOf("updated_at");
+      const approvalCol = headers.indexOf("approval_status");
+
+      // Cari baris dengan id_user = USR_ADMIN_IFTAH atau username = adminmaisyaroom / iftahadmin
+      let adminRowIndex = -1;
+      for (let i = 0; i < allValues.length; i++) {
+        const rowId   = idCol >= 0 && allValues[i][idCol]   ? allValues[i][idCol].toString().trim()               : "";
+        const rowUser = userCol >= 0 && allValues[i][userCol] ? allValues[i][userCol].toString().trim().toLowerCase() : "";
+        const rowNama = namaCol >= 0 && allValues[i][namaCol] ? allValues[i][namaCol].toString().trim().toLowerCase() : "";
+        if (rowId === ADMIN_ID ||
+            rowUser === "adminmaisyaroom" || rowUser === "iftahadmin" ||
+            rowNama === "adminmaisyaroom" || rowNama === "iftahadmin") {
+          adminRowIndex = i + 2; // +2 karena baris 1 adalah header
+          break;
+        }
+      }
+
+      if (adminRowIndex > 0) {
+        // Akun admin sudah ada → update kolom krusial
+        if (namaCol >= 0)      userSheet.getRange(adminRowIndex, namaCol + 1).setValue(ADMIN_NAMA);
+        if (passCol >= 0)      userSheet.getRange(adminRowIndex, passCol + 1).setValue(hashPassword(ADMIN_PASSWORD));
+        if (userCol >= 0)      userSheet.getRange(adminRowIndex, userCol + 1).setValue(ADMIN_USERNAME);
+        if (roleCol >= 0)      userSheet.getRange(adminRowIndex, roleCol + 1).setValue(ADMIN_ROLE);
+        if (aktifCol >= 0)     userSheet.getRange(adminRowIndex, aktifCol + 1).setValue(true);
+        if (approvalCol >= 0)  userSheet.getRange(adminRowIndex, approvalCol + 1).setValue("approved");
+        if (updCol >= 0)       userSheet.getRange(adminRowIndex, updCol + 1).setValue(now);
+        Logger.log("✓ Akun adminmaisyaroom ditemukan di baris " + adminRowIndex + " dan berhasil diperbarui.");
+      } else {
+        // Admin sama sekali tidak ada → tambahkan baris baru
+        const newRow = [
+          ADMIN_ID, ADMIN_NAMA, hashPassword(ADMIN_PASSWORD), ADMIN_USERNAME,
+          ADMIN_ROLE, true, ADMIN_FOTO, now, now, "approved", ADMIN_PHONE,
+          "Super Admin Utama Sistem Maisya"
+        ];
+        userSheet.appendRow(newRow);
+        Logger.log("✓ Akun adminmaisyaroom tidak ditemukan → baris baru berhasil ditambahkan.");
+      }
+    }
   }
 
   // 5. tb_rooms
