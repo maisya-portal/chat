@@ -20,10 +20,14 @@ import {
   UserCheck,
   Palette,
   Settings,
-  Edit3
+  Edit3,
+  MessageCircle,
+  UserPlus
 } from 'lucide-react';
 import { PwaInstallButton } from '../common/PwaInstallButton';
 import { UserSettingsModal } from '../profile/UserSettingsModal';
+import { NewDirectChatModal } from '../chat/NewDirectChatModal';
+import { formatRelativeDate } from '../../utils/dateUtils';
 
 interface SidebarRoomListProps {
   onOpenAdminDashboard: () => void;
@@ -37,12 +41,21 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
   onClose
 }) => {
   const { user, logout, can, isAdmin } = useAuth();
-  const { rooms, activeRoom, selectRoom, joinRoom, isLoadingRooms } = useChat();
+  const { 
+    rooms, 
+    directConversations, 
+    isLoadingDirect, 
+    activeRoom, 
+    selectRoom, 
+    joinRoom, 
+    isLoadingRooms 
+  } = useChat();
 
-  const [activeTab, setActiveTab] = useState<'my' | 'all'>('my');
+  const [activeTab, setActiveTab] = useState<'my' | 'all' | 'dm'>('my');
   const [searchQuery, setSearchQuery] = useState('');
   const [joiningRoom, setJoiningRoom] = useState<Room | null>(null);
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
+  const [isNewDirectChatOpen, setIsNewDirectChatOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState<number>(0);
 
@@ -78,6 +91,18 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
     return matchesSearch;
   });
 
+  // Filter direct conversations
+  const filteredDirectConversations = (directConversations || []).filter((c) => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      c.partner.nama.toLowerCase().includes(q) ||
+      c.partner.username.toLowerCase().includes(q) ||
+      (c.partner.role_nama && c.partner.role_nama.toLowerCase().includes(q)) ||
+      (c.last_message?.content && c.last_message.content.toLowerCase().includes(q))
+    );
+  });
+
   const handleRoomClick = async (room: Room) => {
     if (room.is_joined) {
       selectRoom(room);
@@ -93,6 +118,23 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
         }
       }
     }
+  };
+
+  const handleDirectChatClick = (conv: any) => {
+    selectRoom({
+      id_room: conv.id_room,
+      nama_room: conv.partner.nama,
+      deskripsi: 'Chat Pribadi dengan ' + conv.partner.nama,
+      foto_url: conv.partner.foto_url,
+      created_by: '',
+      status_aktif: true,
+      membutuhkan_kode: false,
+      is_joined: true,
+      is_direct: true,
+      direct_partner: conv.partner,
+      created_at: conv.updated_at
+    });
+    onClose();
   };
 
   return (
@@ -139,7 +181,7 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Cari ruang halaqah / divisi..."
+              placeholder={activeTab === 'dm' ? "Cari kontak / chat pribadi..." : "Cari ruang halaqah / divisi..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-1.5 bg-slate-800/80 border border-slate-700/60 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/80"
@@ -147,12 +189,12 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
           </div>
         </div>
 
-        {/* Tab Switcher & Create Room Button */}
-        <div className="px-4 pt-3 pb-1 flex items-center justify-between">
-          <div className="flex bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 text-xs font-semibold">
+        {/* Tab Switcher & Action Buttons */}
+        <div className="px-3 pt-3 pb-1 flex items-center justify-between gap-1.5">
+          <div className="flex bg-slate-800/80 p-0.5 rounded-xl border border-slate-700/60 text-[11px] font-semibold overflow-x-auto custom-scrollbar">
             <button
               onClick={() => setActiveTab('my')}
-              className={`px-3 py-1 rounded-lg transition-all ${
+              className={`px-2.5 py-1 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
                 activeTab === 'my'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white'
@@ -162,101 +204,220 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
             </button>
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-3 py-1 rounded-lg transition-all ${
+              className={`px-2.5 py-1 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
                 activeTab === 'all'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Semua Room
+              Semua
+            </button>
+            <button
+              onClick={() => setActiveTab('dm')}
+              className={`px-2.5 py-1 rounded-lg transition-all whitespace-nowrap flex items-center gap-1 cursor-pointer ${
+                activeTab === 'dm'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <MessageCircle className="w-3 h-3" />
+              <span>Pribadi</span>
+              {directConversations.length > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                  activeTab === 'dm' ? 'bg-white/20 text-white' : 'bg-emerald-500/20 text-emerald-300'
+                }`}>
+                  {directConversations.length}
+                </span>
+              )}
             </button>
           </div>
 
-          {canCreateRoom && (
+          {activeTab === 'dm' ? (
             <button
-              onClick={() => setIsCreateRoomOpen(true)}
-              className="p-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 transition-colors flex items-center gap-1 text-xs font-medium"
-              title="Buat Room Baru"
+              onClick={() => setIsNewDirectChatOpen(true)}
+              className="p-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 transition-colors flex items-center gap-1 text-xs font-medium cursor-pointer shrink-0"
+              title="Mulai Chat Pribadi Baru"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Buat</span>
+              <span className="hidden sm:inline">Chat</span>
             </button>
+          ) : (
+            canCreateRoom && (
+              <button
+                onClick={() => setIsCreateRoomOpen(true)}
+                className="p-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 transition-colors flex items-center gap-1 text-xs font-medium cursor-pointer shrink-0"
+                title="Buat Room Baru"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Buat</span>
+              </button>
+            )
           )}
         </div>
 
-        {/* Room List Stream */}
+        {/* Stream List (Rooms or DMs) */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1.5">
-          {isLoadingRooms ? (
-            <div className="py-8 text-center text-slate-500 text-xs">
-              Memuat daftar room...
-            </div>
-          ) : filteredRooms.length === 0 ? (
-            <div className="py-8 text-center text-slate-500 text-xs">
-              {activeTab === 'my'
-                ? 'Belum ada room yang Anda ikuti. Coba klik tab "Semua Room".'
-                : 'Tidak ada room yang cocok dengan pencarian.'}
-            </div>
-          ) : (
-            filteredRooms.map((room) => {
-              const isSelected = activeRoom?.id_room === room.id_room;
-              return (
-                <div
-                  key={room.id_room}
-                  onClick={() => handleRoomClick(room)}
-                  className={`group relative p-2.5 rounded-2xl cursor-pointer transition-all flex items-center gap-3 border ${
-                    isSelected
-                      ? 'bg-emerald-950/40 border-emerald-500/50 shadow-md shadow-emerald-950/40'
-                      : 'bg-slate-800/30 hover:bg-slate-800/70 border-slate-700/30'
-                  }`}
+          {activeTab === 'dm' ? (
+            isLoadingDirect ? (
+              <div className="py-8 text-center text-slate-500 text-xs">
+                Memuat percakapan pribadi...
+              </div>
+            ) : filteredDirectConversations.length === 0 ? (
+              <div className="py-10 text-center px-4 space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-center text-slate-500 mx-auto">
+                  <MessageCircle className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-slate-300">Belum Ada Chat Pribadi</p>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Mulai obrolan 1-on-1 dengan admin, asatidzah, staf, atau sesama santri.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsNewDirectChatOpen(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-md shadow-emerald-950 cursor-pointer"
                 >
-                  {/* Room Thumbnail */}
-                  <div className="relative shrink-0">
-                    <img
-                      src={
-                        room.foto_url ||
-                        'https://images.unsplash.com/photo-1542838132-92c53300491e?w=150'
-                      }
-                      alt={room.nama_room}
-                      className="w-11 h-11 rounded-xl object-cover border border-slate-700/60"
-                    />
-                    {room.membutuhkan_kode && (
-                      <div className="absolute -bottom-1 -right-1 p-0.5 rounded-full bg-amber-500/90 text-slate-950 shadow">
-                        <Lock className="w-2.5 h-2.5 stroke-[3]" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Room Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <h4
-                        className={`text-xs font-bold truncate ${
-                          isSelected ? 'text-emerald-300' : 'text-slate-200'
-                        }`}
-                      >
-                        {room.nama_room}
-                      </h4>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Mulai Chat Baru</span>
+                </button>
+              </div>
+            ) : (
+              filteredDirectConversations.map((conv) => {
+                const isSelected = activeRoom?.id_room === conv.id_room;
+                return (
+                  <div
+                    key={conv.id_room}
+                    onClick={() => handleDirectChatClick(conv)}
+                    className={`group relative p-2.5 rounded-2xl cursor-pointer transition-all flex items-center gap-3 border ${
+                      isSelected
+                        ? 'bg-emerald-950/40 border-emerald-500/50 shadow-md shadow-emerald-950/40'
+                        : 'bg-slate-800/30 hover:bg-slate-800/70 border-slate-700/30'
+                    }`}
+                  >
+                    {/* Partner Avatar */}
+                    <div className="relative shrink-0">
+                      <Avatar
+                        src={conv.partner.foto_url}
+                        name={conv.partner.nama}
+                        size="md"
+                        isOnline={conv.partner.status_aktif}
+                      />
                     </div>
-                    <p className="text-[11px] text-slate-400 truncate">
-                      {room.deskripsi || 'Ruang komunikasi'}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3 text-slate-400" />
-                        {room.member_count || 1}
-                      </span>
-                      {room.is_joined ? (
-                        <span className="text-emerald-400 font-medium">Tergabung</span>
-                      ) : (
-                        <span className="text-amber-400 font-medium group-hover:underline">
-                          + Gabung
+
+                    {/* Partner & Message Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <h4
+                          className={`text-xs font-bold truncate ${
+                            isSelected ? 'text-emerald-300' : 'text-slate-200'
+                          }`}
+                        >
+                          {conv.partner.nama}
+                        </h4>
+                        {conv.last_message && (
+                          <span className="text-[10px] text-slate-500 shrink-0 ml-1">
+                            {formatRelativeDate(conv.last_message.created_at)}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Badge roleId={conv.partner.role_id} label={conv.partner.role_nama} size="sm" />
+                        <span className="text-[10px] text-slate-500 font-mono truncate">
+                          @{conv.partner.username}
                         </span>
+                      </div>
+
+                      <p className="text-[11px] text-slate-400 truncate">
+                        {conv.last_message ? (
+                          <span>
+                            {conv.last_message.sender_id === user?.id_user && (
+                              <span className="text-emerald-400 font-medium">Anda: </span>
+                            )}
+                            {conv.last_message.content}
+                          </span>
+                        ) : (
+                          <span className="italic text-slate-500">Mulai obrolan...</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )
+          ) : (
+            isLoadingRooms ? (
+              <div className="py-8 text-center text-slate-500 text-xs">
+                Memuat daftar room...
+              </div>
+            ) : filteredRooms.length === 0 ? (
+              <div className="py-8 text-center text-slate-500 text-xs">
+                {activeTab === 'my'
+                  ? 'Belum ada room yang Anda ikuti. Coba klik tab "Semua".'
+                  : 'Tidak ada room yang cocok dengan pencarian.'}
+              </div>
+            ) : (
+              filteredRooms.map((room) => {
+                const isSelected = activeRoom?.id_room === room.id_room;
+                return (
+                  <div
+                    key={room.id_room}
+                    onClick={() => handleRoomClick(room)}
+                    className={`group relative p-2.5 rounded-2xl cursor-pointer transition-all flex items-center gap-3 border ${
+                      isSelected
+                        ? 'bg-emerald-950/40 border-emerald-500/50 shadow-md shadow-emerald-950/40'
+                        : 'bg-slate-800/30 hover:bg-slate-800/70 border-slate-700/30'
+                    }`}
+                  >
+                    {/* Room Thumbnail */}
+                    <div className="relative shrink-0">
+                      <img
+                        src={
+                          room.foto_url ||
+                          'https://images.unsplash.com/photo-1542838132-92c53300491e?w=150'
+                        }
+                        alt={room.nama_room}
+                        className="w-11 h-11 rounded-xl object-cover border border-slate-700/60"
+                      />
+                      {room.membutuhkan_kode && (
+                        <div className="absolute -bottom-1 -right-1 p-0.5 rounded-full bg-amber-500/90 text-slate-950 shadow">
+                          <Lock className="w-2.5 h-2.5 stroke-[3]" />
+                        </div>
                       )}
                     </div>
+
+                    {/* Room Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <h4
+                          className={`text-xs font-bold truncate ${
+                            isSelected ? 'text-emerald-300' : 'text-slate-200'
+                          }`}
+                        >
+                          {room.nama_room}
+                        </h4>
+                      </div>
+                      <p className="text-[11px] text-slate-400 truncate">
+                        {room.deskripsi || 'Ruang komunikasi'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3 text-slate-400" />
+                          {room.member_count || 1}
+                        </span>
+                        {room.is_joined ? (
+                          <span className="text-emerald-400 font-medium">Tergabung</span>
+                        ) : (
+                          <span className="text-amber-400 font-medium group-hover:underline">
+                            + Gabung
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              );
-            })
+                );
+              })
+            )
           )}
         </div>
 
@@ -349,6 +510,16 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
       <UserSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+
+      {/* New Direct Chat (DM) Modal */}
+      <NewDirectChatModal
+        isOpen={isNewDirectChatOpen}
+        onClose={() => setIsNewDirectChatOpen(false)}
+        onSelectSuccess={() => {
+          setActiveTab('dm');
+          onClose();
+        }}
       />
     </>
   );

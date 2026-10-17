@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { GasClient } from '../../api/gasClient';
 import { ScreenShareSession } from '../../types/api';
+import { Avatar } from '../common/Avatar';
+import { Badge } from '../common/Badge';
 
 interface ChatAreaProps {
   onToggleSidebar: () => void;
@@ -133,50 +135,79 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onToggleSidebar}
-            className="md:hidden p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="md:hidden p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <Menu className="w-5 h-5" />
           </button>
 
-          {/* Room Image / Icon */}
-          <img
-            src={activeRoom.foto_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=150'}
-            alt={activeRoom.nama_room}
-            className="w-10 h-10 rounded-xl object-cover border border-emerald-500/30 shrink-0"
-          />
+          {/* Room / Partner Image */}
+          {activeRoom.is_direct ? (
+            <div className="shrink-0">
+              <Avatar
+                src={activeRoom.foto_url}
+                name={activeRoom.nama_room}
+                size="md"
+                isOnline={activeRoom.direct_partner?.status_aktif}
+              />
+            </div>
+          ) : (
+            <img
+              src={activeRoom.foto_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=150'}
+              alt={activeRoom.nama_room}
+              className="w-10 h-10 rounded-xl object-cover border border-emerald-500/30 shrink-0"
+            />
+          )}
 
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h2 className="text-sm sm:text-base font-bold text-white truncate">
                 {activeRoom.nama_room}
               </h2>
-              {activeRoom.membutuhkan_kode && (
-                <span title="Membutuhkan Kode Passcode">
-                  <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                </span>
+              {activeRoom.is_direct ? (
+                <>
+                  <Badge roleId={activeRoom.direct_partner?.role_id as any} label={activeRoom.direct_partner?.role_nama} size="sm" />
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hidden xs:inline-block">
+                    Pribadi
+                  </span>
+                </>
+              ) : (
+                activeRoom.membutuhkan_kode && (
+                  <span title="Membutuhkan Kode Passcode">
+                    <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  </span>
+                )
               )}
             </div>
             <p className="text-xs text-slate-400 truncate max-w-md hidden sm:block">
-              {activeRoom.deskripsi || 'Ruang komunikasi internal pesantren'}
+              {activeRoom.is_direct
+                ? (activeRoom.direct_partner?.username ? `@${activeRoom.direct_partner.username} • Obrolan Pribadi 1-on-1` : 'Obrolan 1-on-1')
+                : (activeRoom.deskripsi || 'Ruang komunikasi internal pesantren')}
             </p>
           </div>
         </div>
 
         {/* Right Action Icons: Members & Info Panel */}
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={onToggleInfoPanel}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/70 hover:bg-slate-700/80 text-slate-300 hover:text-white text-xs font-medium transition-colors border border-slate-700/50"
-            title="Daftar Peserta & Info Room"
-          >
-            <Users className="w-4 h-4 text-emerald-400" />
-            <span className="hidden sm:inline">{members.length || activeRoom.member_count || 1} Anggota</span>
-          </button>
+          {activeRoom.is_direct ? (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/40 text-emerald-300 border border-emerald-500/30 text-xs font-medium">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span className="hidden sm:inline">1-on-1 Privat</span>
+            </div>
+          ) : (
+            <button
+              onClick={onToggleInfoPanel}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/70 hover:bg-slate-700/80 text-slate-300 hover:text-white text-xs font-medium transition-colors border border-slate-700/50 cursor-pointer"
+              title="Daftar Peserta & Info Room"
+            >
+              <Users className="w-4 h-4 text-emerald-400" />
+              <span className="hidden sm:inline">{members.length || activeRoom.member_count || 1} Anggota</span>
+            </button>
+          )}
 
           <button
             onClick={onToggleInfoPanel}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-            title="Informasi Detail Room"
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            title={activeRoom.is_direct ? "Info Lawan Bicara" : "Informasi Detail Room"}
           >
             <Info className="w-5 h-5" />
           </button>

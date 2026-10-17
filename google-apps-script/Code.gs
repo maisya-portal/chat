@@ -54,6 +54,10 @@ function doGet(e) {
         result = getRooms(params.userId, params.token);
         break;
 
+      case "getDirectConversations":
+        result = getDirectConversations(params.userId, params.token);
+        break;
+
       case "getRoomMembers":
         result = getRoomMembers(params.roomId, params.token);
         break;
@@ -204,6 +208,15 @@ function doPost(e) {
 
       case "removeRoomMember":
         result = removeRoomMember(body.roomId, body.targetUserId, body.token);
+        break;
+
+      // Direct Message (Chat Pribadi 1-on-1)
+      case "getDirectConversations":
+        result = getDirectConversations(body.userId, body.token);
+        break;
+
+      case "getOrCreateDirectRoom":
+        result = getOrCreateDirectRoom(body.userId, body.targetUserId, body.token);
         break;
 
       // Screen Sharing
@@ -536,8 +549,9 @@ function getRooms(userId, token) {
   const myMemberships = members.filter(m => m.id_user === userId && m.status === "active");
   const myRoomIds = new Set(myMemberships.map(m => m.id_room));
 
+  // Hanya ambil room grup biasa (bukan DM pribadi)
   const formattedRooms = rooms
-    .filter(r => r.status_aktif === true || r.status_aktif === "TRUE" || r.status_aktif === 1)
+    .filter(r => (r.status_aktif === true || r.status_aktif === "TRUE" || r.status_aktif === 1) && (!r.id_room || !r.id_room.startsWith("DM_")))
     .map(r => {
       const isJoined = myRoomIds.has(r.id_room);
       const memberCount = members.filter(m => m.id_room === r.id_room && m.status === "active").length;
@@ -555,6 +569,217 @@ function getRooms(userId, token) {
     });
 
   return { success: true, rooms: formattedRooms };
+}
+
+/**
+ * Helper menghitung deterministic Room ID untuk Chat Pribadi 1-on-1
+ */
+function getDmRoomId(id1, id2) {
+  return "DM_" + [id1.toString().trim(), id2.toString().trim()].sort().join("_");
+}
+
+/**
+ * Mengambil daftar percakapan Chat Pribadi (DM) untuk user tertentu
+ */
+function getDirectConversations(userId, token) {
+  if (!userId) return { success: false, error: "User ID wajib disertakan." };
+
+  const { rows: rooms } = getSheetData("tb_rooms");
+  const { rows: members } = getSheetData("tb_room_members");
+  const { rows: users } = getSheetData("tb_users");
+  const { rows: roles } = getSheetData("tb_roles");
+  const { rows: messages } = getSheetData("tb_messages");
+
+  const roleMap = {};
+  roles.forEach(r => { roleMap[r.id_role] = r.nama_role; });
+
+  const userMap = {};
+  users.forEach(u => {
+    userMap[u.id_user] = {
+      id_user: u.id_user,
+      nama: u.nama,
+      username: u.username,
+      foto_url: u.foto_url || "",
+      role_id: u.role_id,
+      role_nama: roleMap[u.role_id] || u.role_id,
+      status_aktif: (u.status_aktif === true || u.status_aktif === "TRUE" || u.status_aktif === 1)
+    };
+  });
+
+  // Ambil semua keanggotaan aktif user di room DM
+  const myDmMemberships = members.filter(m => m.id_user === userId && m.status === "active" && m.id_room && m.id_room.startsWith("DM_"));
+  const myDmRoomIds = new Set(myDmMemberships.map(m => m.id_room));
+
+  // Tambahkan juga jika ada room DM di tb_rooms yang menyertakan userId meskipun belum masuk tb_room_members
+  rooms.forEach(r => {
+    if (r.id_room && r.id_room.startsWith("DM_") && r.id_room.includes(userId)) {
+      myDmRoomIds.add(r.id_room);
+    }
+  });
+
+  const conversations = [];
+
+  myDmRoomIds.forEach(roomId => {
+    const roomObj = rooms.find(r => r.id_room === roomId);
+
+    // Cari partner
+    const roomMbrs = members.filter(m => m.id_room === roomId && m.status === "active");
+    const partnerMbr = roomMbrs.find(m => m.id_user !== userId);
+    
+    let partnerId = partnerMbr ? partnerMbr.id_user : null;
+    if (!partnerId) {
+      // Cari dari nama room atau dari ID users yang ada di string roomId
+      const otherUser = users.find(u => u.id_user !== userId && roomId.includes(u.id_user));
+      if (otherUser) partnerId = otherUser.id_user;
+    }
+
+    if (!partnerId) return;
+
+    const partner = userMap[partnerId] || {
+      id_user: partnerId,
+      nama: "Pengguna Maisya",
+      username: "user",
+      foto_url: "",
+      role_id: "ROLE_PESERTA",
+      role_nama: "Peserta"
+    };
+
+    // Ambil pesan terakhir di room ini
+    const roomMsgs = messages.filter(m => m.id_room === roomId);
+    let lastMsg = null;
+    if (roomMsgs.length > 0) {
+      const latest = roomMsgs[roomMsgs.length - 1];
+      lastMsg = {
+        id_message: latest.id_message,
+        content: latest.deleted_at ? "Pesan ini telah dihapus" : (latest.content || (latest.message_type === "image" ? "[Gambar]" : "")),
+        message_type: latest.message_type || "text",
+        created_at: latest.created_at,
+        sender_id: latest.id_user
+      };
+    }
+
+    const defaultCreated = roomObj ? roomObj.created_at : new Date().toISOString();
+
+    conversations.push({
+      id_room: roomId,
+      nama_room: partner.nama,
+      deskripsi: "Chat Pribadi dengan " + partner.nama,
+      foto_url: partner.foto_url,
+      is_direct: true,
+      partner: partner,
+      last_message: lastMsg,
+      updated_at: (lastMsg ? lastMsg.created_at : defaultCreated) || defaultCreated
+    });
+  });
+
+  // Urutkan dari yang terbaru diperbarui
+  conversations.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
+  return { success: true, conversations: conversations };
+}
+
+/**
+ * Membuka atau membuat ruang Chat Pribadi 1-on-1 antar 2 pengguna
+ */
+function getOrCreateDirectRoom(userId, targetUserId, token) {
+  if (!userId || !targetUserId) {
+    return { success: false, error: "ID pengguna dan ID tujuan wajib disertakan." };
+  }
+
+  if (userId === targetUserId) {
+    return { success: false, error: "Tidak dapat memulai chat pribadi dengan diri sendiri." };
+  }
+
+  const ss = getSpreadsheet();
+  const roomSheet = ss.getSheetByName("tb_rooms");
+  const memberSheet = ss.getSheetByName("tb_room_members");
+  const { rows: users } = getSheetData("tb_users");
+  const { rows: roles } = getSheetData("tb_roles");
+  const { rows: rooms } = getSheetData("tb_rooms");
+  const { rows: members } = getSheetData("tb_room_members");
+
+  const targetUser = users.find(u => u.id_user === targetUserId);
+  if (!targetUser) {
+    return { success: false, error: "Pengguna tujuan tidak ditemukan." };
+  }
+
+  const roleMap = {};
+  roles.forEach(r => { roleMap[r.id_role] = r.nama_role; });
+
+  const partnerInfo = {
+    id_user: targetUser.id_user,
+    nama: targetUser.nama,
+    username: targetUser.username,
+    foto_url: targetUser.foto_url || "",
+    role_id: targetUser.role_id,
+    role_nama: roleMap[targetUser.role_id] || targetUser.role_id,
+    status_aktif: (targetUser.status_aktif === true || targetUser.status_aktif === "TRUE" || targetUser.status_aktif === 1)
+  };
+
+  const dmRoomId = getDmRoomId(userId, targetUserId);
+  const now = new Date().toISOString();
+
+  // 1. Cek apakah room sudah ada di tb_rooms
+  let room = rooms.find(r => r.id_room === dmRoomId);
+  if (!room) {
+    roomSheet.appendRow([
+      dmRoomId,
+      "Chat: " + targetUser.nama,
+      "Chat Pribadi 1-on-1",
+      "", // kode
+      targetUser.foto_url || "",
+      userId,
+      true, // status aktif
+      false, // butuh kode
+      now,
+      now
+    ]);
+  }
+
+  // 2. Pastikan kedua user terdaftar di tb_room_members
+  const myMembership = members.find(m => m.id_room === dmRoomId && m.id_user === userId);
+  if (!myMembership) {
+    memberSheet.appendRow([
+      "MBR_" + Utilities.getUuid().substring(0, 8),
+      dmRoomId,
+      userId,
+      now,
+      "active"
+    ]);
+  } else if (myMembership.status !== "active") {
+    memberSheet.getRange(myMembership._rowIndex, 5).setValue("active");
+  }
+
+  const targetMembership = members.find(m => m.id_room === dmRoomId && m.id_user === targetUserId);
+  if (!targetMembership) {
+    memberSheet.appendRow([
+      "MBR_" + Utilities.getUuid().substring(0, 8),
+      dmRoomId,
+      targetUserId,
+      now,
+      "active"
+    ]);
+  } else if (targetMembership.status !== "active") {
+    memberSheet.getRange(targetMembership._rowIndex, 5).setValue("active");
+  }
+
+  return {
+    success: true,
+    room: {
+      id_room: dmRoomId,
+      nama_room: targetUser.nama,
+      deskripsi: "Chat Pribadi dengan " + targetUser.nama,
+      foto_url: targetUser.foto_url || "",
+      created_by: userId,
+      status_aktif: true,
+      membutuhkan_kode: false,
+      is_joined: true,
+      member_count: 2,
+      is_direct: true,
+      direct_partner: partnerInfo,
+      created_at: room ? room.created_at : now
+    }
+  };
 }
 
 function createRoom(namaRoom, deskripsi, kodeRoom, membutuhkanKode, fotoUrl, userId, token) {

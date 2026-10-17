@@ -365,13 +365,210 @@ export class MockSpreadsheetBackend {
       members.filter(m => m.id_user === userId && m.status === 'active').map(m => m.id_room)
     );
 
-    const result = rooms.filter(r => r.status_aktif).map(r => ({
-      ...r,
-      is_joined: myRoomIds.has(r.id_room),
-      member_count: members.filter(m => m.id_room === r.id_room && m.status === 'active').length
-    }));
+    const result = rooms
+      .filter(r => r.status_aktif && (!r.id_room || !r.id_room.startsWith('DM_')))
+      .map(r => ({
+        ...r,
+        is_joined: myRoomIds.has(r.id_room),
+        member_count: members.filter(m => m.id_room === r.id_room && m.status === 'active').length
+      }));
 
     return { success: true, rooms: result };
+  }
+
+  static getDmRoomId(u1: string, u2: string): string {
+    return 'DM_' + [u1.trim(), u2.trim()].sort().join('_');
+  }
+
+  static getDirectConversations(userId: string) {
+    const rooms = getStore<Room[]>('tb_rooms', INITIAL_ROOMS);
+    const members = getStore<RoomMember[]>('tb_room_members', INITIAL_MEMBERS);
+    const users = getUsersStore();
+    const messages = getStore<Message[]>('tb_messages', INITIAL_MESSAGES);
+    const roles = getStore<Role[]>('tb_roles', INITIAL_ROLES);
+
+    const roleMap = new Map<string, string>();
+    roles.forEach(r => roleMap.set(r.id_role, r.nama_role));
+
+    const userMap = new Map<string, any>();
+    users.forEach(u => {
+      userMap.set(u.id_user, {
+        id_user: u.id_user,
+        nama: u.nama,
+        username: u.username,
+        foto_url: u.foto_url,
+        role_id: u.role_id,
+        role_nama: roleMap.get(u.role_id) || u.role_id,
+        status_aktif: u.status_aktif
+      });
+    });
+
+    const myDmRoomIds = new Set(
+      members.filter(m => m.id_user === userId && m.status === 'active' && m.id_room && m.id_room.startsWith('DM_')).map(m => m.id_room)
+    );
+
+    rooms.forEach(r => {
+      if (r.id_room && r.id_room.startsWith('DM_') && r.id_room.includes(userId)) {
+        myDmRoomIds.add(r.id_room);
+      }
+    });
+
+    const conversations: any[] = [];
+
+    myDmRoomIds.forEach(roomId => {
+      const roomObj = rooms.find(r => r.id_room === roomId);
+      const roomMbrs = members.filter(m => m.id_room === roomId && m.status === 'active');
+      const partnerMbr = roomMbrs.find(m => m.id_user !== userId);
+
+      let partnerId = partnerMbr?.id_user;
+      if (!partnerId) {
+        const otherUser = users.find(u => u.id_user !== userId && roomId.includes(u.id_user));
+        if (otherUser) partnerId = otherUser.id_user;
+      }
+
+      if (!partnerId) return;
+
+      const partner = userMap.get(partnerId) || {
+        id_user: partnerId,
+        nama: 'Pengguna Maisya',
+        username: 'user',
+        foto_url: '',
+        role_id: 'ROLE_PESERTA',
+        role_nama: 'Peserta'
+      };
+
+      const roomMsgs = messages.filter(m => m.id_room === roomId);
+      let lastMsg = null;
+      if (roomMsgs.length > 0) {
+        const latest = roomMsgs[roomMsgs.length - 1];
+        lastMsg = {
+          id_message: latest.id_message,
+          content: latest.is_deleted ? 'Pesan ini telah dihapus' : (latest.content || (latest.message_type === 'image' ? '[Gambar]' : '')),
+          message_type: latest.message_type || 'text',
+          created_at: latest.created_at,
+          sender_id: latest.id_user
+        };
+      }
+
+      const defaultCreated = roomObj?.created_at || new Date().toISOString();
+
+      conversations.push({
+        id_room: roomId,
+        nama_room: partner.nama,
+        deskripsi: 'Chat Pribadi dengan ' + partner.nama,
+        foto_url: partner.foto_url,
+        is_direct: true,
+        partner: partner,
+        last_message: lastMsg,
+        updated_at: (lastMsg ? lastMsg.created_at : defaultCreated) || defaultCreated
+      });
+    });
+
+    conversations.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
+    return { success: true, conversations };
+  }
+
+  static getOrCreateDirectRoom(userId: string, targetUserId: string) {
+    if (!userId || !targetUserId) {
+      return { success: false, error: 'User ID dan ID tujuan wajib diisi' };
+    }
+    if (userId === targetUserId) {
+      return { success: false, error: 'Tidak dapat memulai chat dengan diri sendiri' };
+    }
+
+    const users = getUsersStore();
+    const targetUser = users.find(u => u.id_user === targetUserId);
+    if (!targetUser) {
+      return { success: false, error: 'Pengguna tujuan tidak ditemukan' };
+    }
+
+    const roles = getStore<Role[]>('tb_roles', INITIAL_ROLES);
+    const roleMap = new Map<string, string>();
+    roles.forEach(r => roleMap.set(r.id_role, r.nama_role));
+
+    const dmRoomId = this.getDmRoomId(userId, targetUserId);
+    const now = new Date().toISOString();
+
+    const rooms = getStore<Room[]>('tb_rooms', INITIAL_ROOMS);
+    let room = rooms.find(r => r.id_room === dmRoomId);
+    if (!room) {
+      room = {
+        id_room: dmRoomId,
+        nama_room: targetUser.nama,
+        deskripsi: 'Chat Pribadi dengan ' + targetUser.nama,
+        foto_url: targetUser.foto_url,
+        created_by: userId,
+        status_aktif: true,
+        membutuhkan_kode: false,
+        created_at: now
+      };
+      rooms.push(room);
+      setStore('tb_rooms', rooms);
+    }
+
+    const members = getStore<RoomMember[]>('tb_room_members', INITIAL_MEMBERS);
+    let myMbr = members.find(m => m.id_room === dmRoomId && m.id_user === userId);
+    if (!myMbr) {
+      members.push({
+        id_member: 'MBR_' + Math.random().toString(36).substring(2, 9).toUpperCase(),
+        id_room: dmRoomId,
+        id_user: userId,
+        nama: users.find(u => u.id_user === userId)?.nama || 'User',
+        username: users.find(u => u.id_user === userId)?.username || 'user',
+        foto_url: users.find(u => u.id_user === userId)?.foto_url,
+        role_nama: 'Member',
+        joined_at: now,
+        status: 'active'
+      });
+    } else {
+      myMbr.status = 'active';
+    }
+
+    let targetMbr = members.find(m => m.id_room === dmRoomId && m.id_user === targetUserId);
+    if (!targetMbr) {
+      members.push({
+        id_member: 'MBR_' + Math.random().toString(36).substring(2, 9).toUpperCase(),
+        id_room: dmRoomId,
+        id_user: targetUserId,
+        nama: targetUser.nama,
+        username: targetUser.username,
+        foto_url: targetUser.foto_url,
+        role_nama: roleMap.get(targetUser.role_id) || 'Member',
+        joined_at: now,
+        status: 'active'
+      });
+    } else {
+      targetMbr.status = 'active';
+    }
+
+    setStore('tb_room_members', members);
+
+    return {
+      success: true,
+      room: {
+        id_room: dmRoomId,
+        nama_room: targetUser.nama,
+        deskripsi: 'Chat Pribadi dengan ' + targetUser.nama,
+        foto_url: targetUser.foto_url,
+        created_by: userId,
+        status_aktif: true,
+        membutuhkan_kode: false,
+        is_joined: true,
+        member_count: 2,
+        is_direct: true,
+        direct_partner: {
+          id_user: targetUser.id_user,
+          nama: targetUser.nama,
+          username: targetUser.username,
+          foto_url: targetUser.foto_url,
+          role_id: targetUser.role_id,
+          role_nama: roleMap.get(targetUser.role_id) || targetUser.role_id,
+          status_aktif: targetUser.status_aktif
+        },
+        created_at: room.created_at
+      }
+    };
   }
 
   static joinRoom(roomId: string, userId: string, kodeRoom?: string) {

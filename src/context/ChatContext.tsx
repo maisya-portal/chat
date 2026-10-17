@@ -9,6 +9,8 @@ import { sounds } from '../utils/soundEffects';
 interface ChatContextType {
   activeRoom: Room | null;
   rooms: Room[];
+  directConversations: any[];
+  isLoadingDirect: boolean;
   messages: Message[];
   members: RoomMember[];
   isLoadingRooms: boolean;
@@ -18,6 +20,8 @@ interface ChatContextType {
   setReplyingTo: (msg: Message | null) => void;
   selectRoom: (room: Room) => void;
   refreshRooms: () => Promise<void>;
+  refreshDirectConversations: () => Promise<void>;
+  startDirectChat: (targetUserId: string) => Promise<Room | null>;
   refreshMessages: () => Promise<void>;
   sendMessage: (content: string) => Promise<boolean>;
   sendImageMessage: (file: File, caption?: string) => Promise<boolean>;
@@ -40,12 +44,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { user, token } = useAuth();
 
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [directConversations, setDirectConversations] = useState<any[]>([]);
   const [activeRoom, setActiveRoom] = useState<Room | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
   const [isLoadingRooms, setIsLoadingRooms] = useState<boolean>(false);
+  const [isLoadingDirect, setIsLoadingDirect] = useState<boolean>(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
   const [isSending, setIsSending] = useState<boolean>(false);
 
@@ -76,21 +82,51 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user, token]);
 
-  // Initial rooms load when user is authenticated
+  // Fetch Direct Conversations
+  const refreshDirectConversations = useCallback(async () => {
+    if (!user) return;
+    setIsLoadingDirect(true);
+    try {
+      const res = await GasClient.getDirectConversations(user.id_user, token || undefined);
+      if (res.success && res.conversations) {
+        setDirectConversations(res.conversations);
+      }
+    } catch (e) {
+      console.error('Failed to load direct conversations:', e);
+    } finally {
+      setIsLoadingDirect(false);
+    }
+  }, [user, token]);
+
+  // Initial rooms & direct chats load when user is authenticated
   useEffect(() => {
     if (user) {
       refreshRooms();
+      refreshDirectConversations();
     } else {
       setRooms([]);
+      setDirectConversations([]);
       setActiveRoom(null);
       setMessages([]);
       setMembers([]);
     }
-  }, [user, refreshRooms]);
+  }, [user, refreshRooms, refreshDirectConversations]);
 
-  // Select Room & fetch full message history & members
+  // Select Room / Direct Message & fetch full message history & members
   const selectRoom = useCallback(async (room: Room) => {
-    setActiveRoom(room);
+    const isDirect = Boolean(room.is_direct || (room.id_room && room.id_room.startsWith('DM_')));
+    let enhancedRoom: Room = { ...room, is_direct: isDirect };
+
+    if (isDirect && !enhancedRoom.direct_partner) {
+      const conv = directConversations.find(c => c.id_room === room.id_room);
+      if (conv && conv.partner) {
+        enhancedRoom.direct_partner = conv.partner;
+        enhancedRoom.nama_room = conv.partner.nama;
+        enhancedRoom.foto_url = conv.partner.foto_url;
+      }
+    }
+
+    setActiveRoom(enhancedRoom);
     setReplyingTo(null);
     setIsLoadingMessages(true);
 
@@ -105,13 +141,54 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       if (memberRes.success && memberRes.members) {
         setMembers(memberRes.members);
+        // Jika DM dan partner belum ada di state room, ekstrak dari anggota lain
+        if (isDirect && !enhancedRoom.direct_partner && user) {
+          const partnerMbr = memberRes.members.find((m: RoomMember) => m.id_user !== user.id_user);
+          if (partnerMbr) {
+            enhancedRoom = {
+              ...enhancedRoom,
+              nama_room: partnerMbr.nama,
+              foto_url: partnerMbr.foto_url,
+              direct_partner: {
+                id_user: partnerMbr.id_user,
+                nama: partnerMbr.nama,
+                username: partnerMbr.username,
+                foto_url: partnerMbr.foto_url,
+                role_id: '',
+                role_nama: partnerMbr.role_nama
+              }
+            };
+            setActiveRoom(enhancedRoom);
+          }
+        }
       }
     } catch (e) {
       console.error('Failed to load room details:', e);
     } finally {
       setIsLoadingMessages(false);
     }
-  }, [token]);
+  }, [token, directConversations, user]);
+
+  // Memulai atau membuka chat pribadi dengan target user
+  const startDirectChat = useCallback(async (targetUserId: string): Promise<Room | null> => {
+    if (!user) return null;
+    try {
+      showToast('Membuka percakapan pribadi...', 'info');
+      const res = await GasClient.getOrCreateDirectRoom(user.id_user, targetUserId, token || undefined);
+      if (res.success && res.room) {
+        await refreshDirectConversations();
+        selectRoom(res.room);
+        showToast('Chat pribadi aktif', 'success');
+        return res.room;
+      } else {
+        showToast(res.error || 'Gagal memulai chat pribadi', 'error');
+        return null;
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Gangguan koneksi', 'error');
+      return null;
+    }
+  }, [user, token, refreshDirectConversations, selectRoom, showToast]);
 
   const refreshMessages = useCallback(async () => {
     if (!activeRoom) return;
@@ -202,17 +279,24 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const runRoomPoll = async () => {
       try {
-        const res = await GasClient.getRooms(user.id_user, token || undefined);
-        if (isSubscribed && res.success && res.rooms) {
-          // Gunakan setRooms dengan state prev untuk mencegah re-render jika data tidak berubah (optimalisasi bisa ditambahkan)
-          setRooms(res.rooms);
+        const [roomRes, dmRes] = await Promise.all([
+          GasClient.getRooms(user.id_user, token || undefined),
+          GasClient.getDirectConversations(user.id_user, token || undefined)
+        ]);
+        if (isSubscribed) {
+          if (roomRes.success && roomRes.rooms) {
+            setRooms(roomRes.rooms);
+          }
+          if (dmRes.success && dmRes.conversations) {
+            setDirectConversations(dmRes.conversations);
+          }
         }
       } catch (e) {
         // Silent error
       }
       
       if (isSubscribed) {
-        timer = setTimeout(runRoomPoll, 5000); // Polling daftar room tiap 5 detik
+        timer = setTimeout(runRoomPoll, 5000); // Polling daftar room & DM tiap 5 detik
       }
     };
 
@@ -265,6 +349,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setMessages(prev =>
           prev.map(m => (m.id_message === tempId ? { ...((res as any).message as Message), status: 'sent' } : m))
         );
+        if (activeRoom.is_direct) {
+          refreshDirectConversations();
+        }
         return true;
       } else {
         setMessages(prev =>
@@ -522,6 +609,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         activeRoom,
         rooms,
+        directConversations,
+        isLoadingDirect,
         messages,
         members,
         isLoadingRooms,
@@ -531,6 +620,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setReplyingTo,
         selectRoom,
         refreshRooms,
+        refreshDirectConversations,
+        startDirectChat,
         refreshMessages,
         sendMessage,
         sendImageMessage,

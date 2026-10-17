@@ -128,6 +128,10 @@ export class GasClient {
         return MockSpreadsheetBackend.validateSession(p.token);
       case 'getRooms':
         return MockSpreadsheetBackend.getRooms(p.userId);
+      case 'getDirectConversations':
+        return MockSpreadsheetBackend.getDirectConversations(p.userId);
+      case 'getOrCreateDirectRoom':
+        return MockSpreadsheetBackend.getOrCreateDirectRoom(p.userId, p.targetUserId);
       case 'createRoom':
         return MockSpreadsheetBackend.createRoom(p.namaRoom, p.deskripsi, p.kodeRoom, p.membutuhkanKode, p.fotoUrl, p.userId);
       case 'deleteRoom':
@@ -215,6 +219,14 @@ export class GasClient {
 
   static async getRooms(userId: string, token?: string) {
     return this.request('getRooms', { userId, token }, 'GET');
+  }
+
+  static async getDirectConversations(userId: string, token?: string) {
+    return this.request('getDirectConversations', { userId, token }, 'GET');
+  }
+
+  static async getOrCreateDirectRoom(userId: string, targetUserId: string, token?: string) {
+    return this.request('getOrCreateDirectRoom', { userId, targetUserId, token });
   }
 
   static async createRoom(data: { namaRoom: string; deskripsi?: string; kodeRoom?: string; membutuhkanKode?: boolean; fotoUrl?: string; userId: string; token?: string }) {
