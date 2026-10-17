@@ -15,7 +15,8 @@ import {
   Check, 
   Clock, 
   AlertCircle,
-  CornerDownRight
+  CornerDownRight,
+  MessageCircle
 } from 'lucide-react';
 
 interface MessageBubbleProps {
@@ -30,7 +31,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onOpenRevisions
 }) => {
   const { user, can } = useAuth();
-  const { deleteMessage, editMessage, setReplyingTo, showToast } = useChat();
+  const { deleteMessage, editMessage, setReplyingTo, showToast, startDirectChat, activeRoom } = useChat();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -83,12 +84,22 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     >
       {/* Avatar */}
       {!isOwn && (
-        <Avatar
-          src={message.foto_pengirim}
-          name={message.nama_pengirim || 'Pengguna'}
-          size="sm"
-          className="mt-1"
-        />
+        <button
+          type="button"
+          onClick={() => {
+            if (!activeRoom?.is_direct && message.id_user) {
+              startDirectChat(message.id_user);
+            }
+          }}
+          className="mt-1 transition-transform hover:scale-105 active:scale-95 cursor-pointer text-left shrink-0"
+          title={!activeRoom?.is_direct ? `Chat Pribadi dengan ${message.nama_pengirim}` : undefined}
+        >
+          <Avatar
+            src={message.foto_pengirim}
+            name={message.nama_pengirim || 'Pengguna'}
+            size="sm"
+          />
+        </button>
       )}
 
       {/* Bubble Container */}
@@ -96,9 +107,23 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         
         {/* Sender Name (for other people's messages) */}
         {!isOwn && (
-          <span className="text-[11px] font-semibold text-emerald-400 mb-1 ml-1 tracking-wide">
-            {message.nama_pengirim || 'Pengguna'}
-          </span>
+          <button
+            type="button"
+            onClick={() => {
+              if (!activeRoom?.is_direct && message.id_user) {
+                startDirectChat(message.id_user);
+              }
+            }}
+            className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 mb-1 ml-1 tracking-wide cursor-pointer text-left flex items-center gap-1.5 group/sender"
+            title={!activeRoom?.is_direct ? `Chat Pribadi dengan ${message.nama_pengirim}` : undefined}
+          >
+            <span>{message.nama_pengirim || 'Pengguna'}</span>
+            {!activeRoom?.is_direct && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-normal opacity-0 group-hover/sender:opacity-100 transition-opacity">
+                💬 Chat Pribadi
+              </span>
+            )}
+          </button>
         )}
 
         {/* Quoted Message (if replied) */}
@@ -229,9 +254,23 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 <div
                   className={`absolute top-full mt-1 ${
                     isOwn ? 'right-0' : 'left-0'
-                  } w-36 bg-slate-900 border border-slate-700 rounded-xl shadow-xl z-20 py-1 text-xs`}
+                  } w-40 bg-slate-900 border border-slate-700 rounded-xl shadow-xl z-20 py-1 text-xs`}
                   onMouseLeave={() => setIsMenuOpen(false)}
                 >
+                  {/* Chat Pribadi for other users' messages */}
+                  {!isOwn && message.id_user && !activeRoom?.is_direct && (
+                    <button
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        startDirectChat(message.id_user);
+                      }}
+                      className="w-full px-3 py-1.5 text-left text-emerald-400 hover:bg-emerald-600/20 flex items-center gap-2 transition-colors font-semibold border-b border-slate-800"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Chat Pribadi</span>
+                    </button>
+                  )}
+
                   {canCopy && (
                     <button
                       onClick={handleCopy}
