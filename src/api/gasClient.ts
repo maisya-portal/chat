@@ -135,6 +135,7 @@ export class GasClient {
       case 'createRoom':
         return MockSpreadsheetBackend.createRoom(p.namaRoom, p.deskripsi, p.kodeRoom, p.membutuhkanKode, p.fotoUrl, p.userId);
       case 'deleteRoom':
+      case 'deleteDirectChat':
         return MockSpreadsheetBackend.deleteRoom(p.roomId, p.userId);
       case 'updateRoom':
         return MockSpreadsheetBackend.updateRoom(p.roomId, p.data, p.userId);
@@ -235,6 +236,10 @@ export class GasClient {
 
   static async deleteRoom(roomId: string, userId: string, token?: string) {
     return this.request('deleteRoom', { roomId, userId, token });
+  }
+
+  static async deleteDirectChat(roomId: string, userId: string, token?: string) {
+    return this.request('deleteDirectChat', { roomId, userId, token });
   }
 
   static async updateRoom(roomId: string, data: Partial<Room>, userId: string, token?: string) {

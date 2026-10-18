@@ -34,6 +34,11 @@ interface ChatContextType {
   deleteRoom: (roomId: string) => Promise<{ success: boolean; error?: string; message?: string }>;
   updateRoom: (roomId: string, data: Partial<Room>) => Promise<{ success: boolean; error?: string; message?: string }>;
   toggleRoomLock: (roomId: string, newKode?: string) => Promise<{ success: boolean; error?: string; message?: string }>;
+  archivedDmIds: string[];
+  archiveDirectChat: (roomId: string) => void;
+  unarchiveDirectChat: (roomId: string) => void;
+  deleteDirectChat: (roomId: string) => Promise<boolean>;
+  isDmArchived: (roomId: string) => boolean;
   toast: { message: string; type: 'success' | 'error' | 'info' } | null;
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
@@ -45,6 +50,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [directConversations, setDirectConversations] = useState<any[]>([]);
+  const [archivedDmIds, setArchivedDmIds] = useState<string[]>(() => {
+    try {
+      if (user?.id_user) {
+        const saved = localStorage.getItem(`maisya_archived_dms_${user.id_user}`);
+        return saved ? JSON.parse(saved) : [];
+      }
+    } catch {}
+    return [];
+  });
   const [activeRoom, setActiveRoom] = useState<Room | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [members, setMembers] = useState<RoomMember[]>([]);
@@ -111,6 +125,84 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setMembers([]);
     }
   }, [user, refreshRooms, refreshDirectConversations]);
+
+  // Synchronize archive state on user change
+  useEffect(() => {
+    if (user?.id_user) {
+      try {
+        const saved = localStorage.getItem(`maisya_archived_dms_${user.id_user}`);
+        setArchivedDmIds(saved ? JSON.parse(saved) : []);
+      } catch {
+        setArchivedDmIds([]);
+      }
+    } else {
+      setArchivedDmIds([]);
+    }
+  }, [user?.id_user]);
+
+  const archiveDirectChat = useCallback((roomId: string) => {
+    setArchivedDmIds(prev => {
+      if (!prev.includes(roomId)) {
+        const next = [...prev, roomId];
+        if (user?.id_user) {
+          try {
+            localStorage.setItem(`maisya_archived_dms_${user.id_user}`, JSON.stringify(next));
+          } catch {}
+        }
+        return next;
+      }
+      return prev;
+    });
+    showToast('Obrolan dipindahkan ke Arsip', 'info');
+  }, [user?.id_user, showToast]);
+
+  const unarchiveDirectChat = useCallback((roomId: string) => {
+    setArchivedDmIds(prev => {
+      const next = prev.filter(id => id !== roomId);
+      if (user?.id_user) {
+        try {
+          localStorage.setItem(`maisya_archived_dms_${user.id_user}`, JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
+    showToast('Obrolan dikembalikan dari Arsip', 'info');
+  }, [user?.id_user, showToast]);
+
+  const isDmArchived = useCallback((roomId: string) => {
+    return archivedDmIds.includes(roomId);
+  }, [archivedDmIds]);
+
+  const deleteDirectChat = useCallback(async (roomId: string) => {
+    if (!user) return false;
+    try {
+      const res = await GasClient.deleteDirectChat(roomId, user.id_user, token || undefined);
+      if (res.success) {
+        setArchivedDmIds(prev => {
+          const next = prev.filter(id => id !== roomId);
+          try {
+            localStorage.setItem(`maisya_archived_dms_${user.id_user}`, JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+
+        if (activeRoom?.id_room === roomId) {
+          setActiveRoom(null);
+          setMessages([]);
+          setMembers([]);
+        }
+        await refreshDirectConversations();
+        showToast(res.message || 'Riwayat chat pribadi berhasil dihapus', 'success');
+        return true;
+      } else {
+        showToast(res.error || 'Gagal menghapus chat pribadi', 'error');
+        return false;
+      }
+    } catch (e: any) {
+      showToast('Gagal menghapus chat pribadi', 'error');
+      return false;
+    }
+  }, [user, token, activeRoom?.id_room, showToast, refreshDirectConversations]);
 
   // Select Room / Direct Message & fetch full message history & members
   const selectRoom = useCallback(async (room: Room) => {
@@ -634,6 +726,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteRoom,
         updateRoom,
         toggleRoomLock,
+        archivedDmIds,
+        archiveDirectChat,
+        unarchiveDirectChat,
+        deleteDirectChat,
+        isDmArchived,
         toast,
         showToast
       }}

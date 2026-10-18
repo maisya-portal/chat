@@ -12,7 +12,9 @@ import {
   Calendar,
   KeyRound,
   Trash2,
-  MessageCircle
+  MessageCircle,
+  Archive,
+  ArchiveRestore
 } from 'lucide-react';
 import { formatRelativeDate } from '../../utils/dateUtils';
 
@@ -22,7 +24,18 @@ interface RoomInfoPanelProps {
 }
 
 export const RoomInfoPanel: React.FC<RoomInfoPanelProps> = ({ isOpen, onClose }) => {
-  const { activeRoom, members, removeMember, leaveRoom, deleteRoom, startDirectChat } = useChat();
+  const { 
+    activeRoom, 
+    members, 
+    removeMember, 
+    leaveRoom, 
+    deleteRoom, 
+    startDirectChat,
+    isDmArchived,
+    archiveDirectChat,
+    unarchiveDirectChat,
+    deleteDirectChat
+  } = useChat();
   const { user, can, isAdmin } = useAuth();
 
   if (!isOpen || !activeRoom) return null;
@@ -226,6 +239,46 @@ export const RoomInfoPanel: React.FC<RoomInfoPanelProps> = ({ isOpen, onClose })
             >
               <LogOut className="w-4 h-4 text-slate-400" />
               <span>Keluar dari Room Ini</span>
+            </button>
+          </div>
+        )}
+
+        {/* Room Actions for Direct Chats */}
+        {isDirect && (
+          <div className="pt-4 border-t border-slate-800 space-y-2">
+            {isDmArchived(activeRoom.id_room) ? (
+              <button
+                onClick={() => {
+                  unarchiveDirectChat(activeRoom.id_room);
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-emerald-400 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              >
+                <ArchiveRestore className="w-4 h-4 text-emerald-400" />
+                <span>Keluarkan dari Arsip</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  archiveDirectChat(activeRoom.id_room);
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              >
+                <Archive className="w-4 h-4 text-amber-400" />
+                <span>Arsipkan Obrolan Ini</span>
+              </button>
+            )}
+
+            <button
+              onClick={async () => {
+                if (confirm(`Hapus permanen seluruh riwayat chat pribadi ini?\n\nSemua pesan dengan "${activeRoom.nama_room}" akan dihapus dari sistem.`)) {
+                  onClose();
+                  await deleteDirectChat(activeRoom.id_room);
+                }
+              }}
+              className="w-full py-2.5 px-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4 text-rose-400" />
+              <span>Hapus Riwayat Chat Ini</span>
             </button>
           </div>
         )}

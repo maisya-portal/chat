@@ -22,7 +22,10 @@ import {
   Settings,
   Edit3,
   MessageCircle,
-  UserPlus
+  UserPlus,
+  Archive,
+  ArchiveRestore,
+  Trash2
 } from 'lucide-react';
 import { PwaInstallButton } from '../common/PwaInstallButton';
 import { UserSettingsModal } from '../profile/UserSettingsModal';
@@ -48,10 +51,15 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
     activeRoom, 
     selectRoom, 
     joinRoom, 
-    isLoadingRooms 
+    isLoadingRooms,
+    archiveDirectChat,
+    unarchiveDirectChat,
+    deleteDirectChat,
+    isDmArchived
   } = useChat();
 
   const [activeTab, setActiveTab] = useState<'my' | 'all' | 'dm'>('my');
+  const [dmSubTab, setDmSubTab] = useState<'active' | 'archived'>('active');
   const [searchQuery, setSearchQuery] = useState('');
   const [joiningRoom, setJoiningRoom] = useState<Room | null>(null);
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
@@ -91,8 +99,13 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
     return matchesSearch;
   });
 
-  // Filter direct conversations
-  const filteredDirectConversations = (directConversations || []).filter((c) => {
+  // Split direct conversations into active and archived
+  const activeDirectConversations = (directConversations || []).filter(c => !isDmArchived(c.id_room));
+  const archivedDirectConversations = (directConversations || []).filter(c => isDmArchived(c.id_room));
+
+  // Filter direct conversations based on current subTab and search
+  const currentDirectList = dmSubTab === 'archived' ? archivedDirectConversations : activeDirectConversations;
+  const filteredDirectConversations = currentDirectList.filter((c) => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
     return (
@@ -222,11 +235,11 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
             >
               <MessageCircle className="w-3 h-3" />
               <span>Pribadi</span>
-              {directConversations.length > 0 && (
+              {activeDirectConversations.length > 0 && (
                 <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
                   activeTab === 'dm' ? 'bg-white/20 text-white' : 'bg-emerald-500/20 text-emerald-300'
                 }`}>
-                  {directConversations.length}
+                  {activeDirectConversations.length}
                 </span>
               )}
             </button>
@@ -255,6 +268,42 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
           )}
         </div>
 
+        {/* DM Sub-tabs (Obrolan Aktif vs Arsip) */}
+        {activeTab === 'dm' && (
+          <div className="flex items-center gap-2 px-3 pt-1 pb-1">
+            <button
+              onClick={() => setDmSubTab('active')}
+              className={`flex-1 py-1 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                dmSubTab === 'active'
+                  ? 'bg-slate-800 text-emerald-400 border border-slate-700 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+              }`}
+            >
+              <span>Obrolan</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-700/60 text-slate-300">
+                {activeDirectConversations.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setDmSubTab('archived')}
+              className={`flex-1 py-1 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                dmSubTab === 'archived'
+                  ? 'bg-slate-800 text-amber-400 border border-amber-500/30 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+              }`}
+            >
+              <Archive className="w-3.5 h-3.5" />
+              <span>Arsip</span>
+              {archivedDirectConversations.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/20 text-amber-300 font-bold">
+                  {archivedDirectConversations.length}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Stream List (Rooms or DMs) */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1.5">
           {activeTab === 'dm' ? (
@@ -263,27 +312,43 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
                 Memuat percakapan pribadi...
               </div>
             ) : filteredDirectConversations.length === 0 ? (
-              <div className="py-10 text-center px-4 space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-center text-slate-500 mx-auto">
-                  <MessageCircle className="w-6 h-6" />
+              dmSubTab === 'archived' ? (
+                <div className="py-10 text-center px-4 space-y-2.5">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-center text-amber-400 mx-auto">
+                    <Archive className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-slate-300">Belum Ada Chat yang Diarsipkan</p>
+                    <p className="text-[11px] text-slate-400 leading-relaxed max-w-xs mx-auto">
+                      Gunakan ikon arsip pada obrolan pribadi untuk memindahkannya ke sini. Obrolan di arsip dapat dihapus riwayatnya atau dipulihkan kembali.
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold text-slate-300">Belum Ada Chat Pribadi</p>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Mulai obrolan 1-on-1 dengan admin, asatidzah, staf, atau sesama santri.
-                  </p>
+              ) : (
+                <div className="py-10 text-center px-4 space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-center text-slate-500 mx-auto">
+                    <MessageCircle className="w-6 h-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-slate-300">Belum Ada Chat Pribadi</p>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Mulai obrolan 1-on-1 dengan admin, asatidzah, staf, atau sesama santri.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setIsNewDirectChatOpen(true)}
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-md shadow-emerald-950 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Mulai Chat Baru</span>
+                  </button>
                 </div>
-                <button
-                  onClick={() => setIsNewDirectChatOpen(true)}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-md shadow-emerald-950 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Mulai Chat Baru</span>
-                </button>
-              </div>
+              )
             ) : (
               filteredDirectConversations.map((conv) => {
                 const isSelected = activeRoom?.id_room === conv.id_room;
+                const isArchived = isDmArchived(conv.id_room);
+
                 return (
                   <div
                     key={conv.id_room}
@@ -340,6 +405,50 @@ export const SidebarRoomList: React.FC<SidebarRoomListProps> = ({
                           <span className="italic text-slate-500">Mulai obrolan...</span>
                         )}
                       </p>
+                    </div>
+
+                    {/* Action buttons on card */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isArchived ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              unarchiveDirectChat(conv.id_room);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/15 transition-colors cursor-pointer"
+                            title="Keluarkan dari Arsip"
+                          >
+                            <ArchiveRestore className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (confirm(`Hapus seluruh riwayat chat pribadi dengan "${conv.partner.nama}"?\n\nSemua riwayat percakapan akan dihapus permanen.`)) {
+                                await deleteDirectChat(conv.id_room);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/15 transition-colors cursor-pointer"
+                            title="Hapus Chat Permanen"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            archiveDirectChat(conv.id_room);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-amber-500/15 transition-colors opacity-80 sm:opacity-0 group-hover:opacity-100 cursor-pointer"
+                          title="Arsipkan Obrolan"
+                        >
+                          <Archive className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

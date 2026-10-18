@@ -6,6 +6,11 @@
     <meta name="description" content="Maisya Chat Room - Platform Komunikasi Internal & Halaqah Pondok Pesantren Imam Syafi'i Brebes berbasis Google Spreadsheet DB_MAISYA_CHAT dan WebRTC" />
     <meta name="theme-color" content="#064E3B" />
     
+    <!-- Anti-Cache Meta -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
     <!-- PWA & Mobile Web App Meta -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -36,13 +41,34 @@
   <body class="bg-slate-950 text-slate-100 antialiased selection:bg-emerald-500 selection:text-white">
     <div id="root"></div>
 
-    <!-- PWA Service Worker Registration -->
+    <!-- PWA Service Worker Registration dengan Auto-Update Instan -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('./sw.js', { scope: './' })
-            .then((reg) => console.log('✅ PWA Service Worker Registered:', reg.scope))
+            .then((reg) => {
+              console.log('✅ PWA Service Worker Registered:', reg.scope);
+              reg.update();
+              reg.onupdatefound = () => {
+                const installingWorker = reg.installing;
+                if (installingWorker) {
+                  installingWorker.onstatechange = () => {
+                    if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      installingWorker.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                  };
+                }
+              };
+            })
             .catch((err) => console.warn('PWA SW Register Error:', err));
+        });
+
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
         });
       }
     </script>
@@ -54,7 +80,7 @@
         const s = document.createElement('script');
         s.type = 'module';
         s.crossOrigin = 'anonymous';
-        s.src = './assets/app.js';
+        s.src = './assets/app.js?v=' + Date.now();
         document.body.appendChild(s);
       }
     </script>

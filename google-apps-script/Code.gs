@@ -219,6 +219,10 @@ function doPost(e) {
         result = getOrCreateDirectRoom(body.userId, body.targetUserId, body.token);
         break;
 
+      case "deleteDirectChat":
+        result = deleteRoom(body.roomId, body.userId, body.token);
+        break;
+
       // Screen Sharing
       case "createScreenShareSession":
         result = createScreenShareSession(body.roomId, body.userId, body.token);
@@ -955,16 +959,28 @@ function updateRoom(roomId, namaRoom, deskripsi, kodeRoom, membutuhkanKode, foto
 }
 
 function deleteRoom(roomId, userId, token) {
-  if (!checkUserPermission(token, "manage_rooms")) {
-    return { success: false, error: "Akses ditolak: Hanya admin yang dapat menghapus room." };
+  const isDirect = roomId && roomId.startsWith("DM_");
+  const session = verifyToken(token);
+  const callerId = session ? session.userId : (userId || "ADMIN");
+
+  if (isDirect) {
+    // Obrolan pribadi dapat dihapus oleh partisipan obrolan atau admin
+    const isParticipant = callerId && roomId.includes(callerId);
+    const isAdmin = checkUserPermission(token, "manage_rooms");
+    if (!isParticipant && !isAdmin) {
+      return { success: false, error: "Akses ditolak: Anda bukan partisipan obrolan ini." };
+    }
+  } else {
+    if (!checkUserPermission(token, "manage_rooms")) {
+      return { success: false, error: "Akses ditolak: Hanya admin yang dapat menghapus room." };
+    }
   }
 
   const { sheet, rows: rooms } = getSheetData("tb_rooms");
   const room = rooms.find(r => r.id_room === roomId);
-  if (!room) return { success: false, error: "Room tidak ditemukan." };
-
-  // Hapus baris room
-  sheet.deleteRow(room._rowIndex);
+  if (room) {
+    sheet.deleteRow(room._rowIndex);
+  }
 
   // Hapus keanggotaan room ini
   try {
@@ -996,10 +1012,14 @@ function deleteRoom(roomId, userId, token) {
     Logger.log("Error messages on deleteRoom: " + e.message);
   }
 
-  const session = verifyToken(token);
-  logActivity(session ? session.userId : (userId || "ADMIN"), "DELETE_ROOM: " + room.nama_room, roomId);
+  logActivity(callerId, "DELETE_ROOM: " + roomId, roomId);
 
-  return { success: true, message: "Room '" + room.nama_room + "' beserta data riwayatnya berhasil dihapus." };
+  return { 
+    success: true, 
+    message: isDirect 
+      ? "Obrolan pribadi beserta seluruh riwayat chat berhasil dihapus." 
+      : ("Room '" + (room ? room.nama_room : roomId) + "' beserta data riwayatnya berhasil dihapus.") 
+  };
 }
 
 function toggleRoomLock(roomId, userId, newKode, token) {

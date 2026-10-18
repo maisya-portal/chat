@@ -671,7 +671,9 @@ export class MockSpreadsheetBackend {
   static deleteRoom(roomId: string, currentUserId: string) {
     let rooms = getStore<Room[]>('tb_rooms', INITIAL_ROOMS);
     const targetRoom = rooms.find(r => r.id_room === roomId);
-    if (!targetRoom) {
+    const isDirect = roomId.startsWith('DM_');
+
+    if (!targetRoom && !isDirect) {
       return { success: false, error: 'Room tidak ditemukan' };
     }
 
@@ -689,8 +691,12 @@ export class MockSpreadsheetBackend {
     messages = messages.filter(m => m.id_room !== roomId);
     setStore('tb_messages', messages);
 
-    this.logActivity(currentUserId, `DELETE_ROOM: ${targetRoom.nama_room}`, roomId);
-    return { success: true, message: `Room "${targetRoom.nama_room}" berhasil dihapus.` };
+    const roomName = targetRoom ? targetRoom.nama_room : roomId;
+    this.logActivity(currentUserId, `DELETE_ROOM: ${roomName}`, roomId);
+    return { 
+      success: true, 
+      message: isDirect ? 'Obrolan pribadi dan riwayat chat berhasil dihapus.' : `Room "${roomName}" berhasil dihapus.` 
+    };
   }
 
   static updateRoom(roomId: string, data: Partial<Room>, currentUserId: string) {
