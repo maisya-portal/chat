@@ -5,7 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="description" content="Maisya Chat Room - Platform Komunikasi Internal & Halaqah Pondok Pesantren Imam Syafi'i Brebes berbasis Google Spreadsheet DB_MAISYA_CHAT dan WebRTC" />
     <meta name="theme-color" content="#064E3B" />
+    <meta name="app-version" content="mvd5hi5q-cdey" />
     
+    <!-- Anti-Cache Meta: Memastikan hard reload atau refresh meminta index terbaru -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
     <!-- PWA & Mobile Web App Meta -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -30,19 +36,41 @@
         font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
       }
     </style>
-    <link rel="stylesheet" crossorigin href="./assets/app.css" />
-    <script type="module" crossorigin src="./assets/app.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/app.css?v=mvd5hi5q-cdey" />
+    <script type="module" crossorigin src="./assets/app.js?v=mvd5hi5q-cdey"></script>
   </head>
   <body class="bg-slate-950 text-slate-100 antialiased selection:bg-emerald-500 selection:text-white">
     <div id="root"></div>
 
-    <!-- Service Worker Registration for PWA -->
+    <!-- PWA Service Worker Registration dengan Auto-Update Instan -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js', { scope: './' })
-            .then(reg => console.log('✅ PWA Service Worker Registered:', reg.scope))
+          navigator.serviceWorker.register('./sw.js?v=mvd5hi5q-cdey', { scope: './' })
+            .then(reg => {
+              console.log('✅ PWA Service Worker Registered (vmvd5hi5q-cdey):', reg.scope);
+              // Selalu cek update ke server secara otomatis
+              reg.update();
+              reg.onupdatefound = () => {
+                const installingWorker = reg.installing;
+                if (installingWorker) {
+                  installingWorker.onstatechange = () => {
+                    if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      installingWorker.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                  };
+                }
+              };
+            })
             .catch(err => console.warn('PWA SW Register Error:', err));
+        });
+
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
         });
       }
     </script>
